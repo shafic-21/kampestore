@@ -12,13 +12,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { signIn, signOut } from "@/lib/auth-client";
+import { authClient, signIn, signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { sign } from "node:crypto";
+import { TokenVerificationForm } from "@/components/token-verification-form";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+
+  if (emailSent) {
+    return (
+      <TokenVerificationForm
+        email={email}
+        onResendSuccess={() => {
+          setEmailSent(false);
+        }}
+      />
+    );
+  }
 
   return (
     <Card className="w-md">
@@ -51,20 +63,23 @@ export default function SignIn() {
                     email,
                   },
                   {
-                    onRequest: (ctx) => {
+                    onRequest: () => {
                       setLoading(true);
                     },
-                    onResponse: (ctx) => {
+                    onResponse: () => {
                       setLoading(false);
                     },
-                  },
+                    onSuccess: () => {
+                      setEmailSent(true);
+                    },
+                  }
                 );
               }}
             >
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
-                <span> Sign-in with Magic Link</span>
+                <span>Send Magic Link</span>
               )}
             </Button>
           </div>
@@ -72,7 +87,7 @@ export default function SignIn() {
           <div
             className={cn(
               "w-full gap-2 flex items-center",
-              "justify-between flex-col",
+              "justify-between flex-col"
             )}
           >
             <Button
@@ -92,7 +107,7 @@ export default function SignIn() {
                     onResponse: (ctx) => {
                       setLoading(false);
                     },
-                  },
+                  }
                 );
               }}
             >
