@@ -57,7 +57,7 @@ export default function HeroSection() {
                 preset="fade-in-blur"
                 speedSegment={0.3}
                 as="h1"
-                className="text-balance text-4xl sm:text-6xl font-bold md:text-7xl text-foreground"
+                className="text-balance text-4xl font-bold md:text-6xl text-foreground mt-4"
               >
                 Design and earn sweet, sweet cash.
               </TextEffect>
@@ -67,12 +67,13 @@ export default function HeroSection() {
                 speedSegment={0.3}
                 delay={0.5}
                 as="p"
-                className="mx-auto mt-6 max-w-2xl text-pretty text-lg lg:text-2xl text-foreground"
+                className="mx-auto mt-4 max-w-2xl text-pretty text-lg lg:text-2xl text-foreground mb-6"
               >
                 Place your art on quality products, from tees and hoodies to
                 mugs, and start selling. It’s fun, easy, and quick to get
                 started.
               </TextEffect>
+              <WaitlistForm  />
 
               <AnimatedGroup
                 variants={
@@ -90,18 +91,16 @@ export default function HeroSection() {
                 }
                 className="mt-12 isolate relative"
               >
-                <WaitlistForm />
-
                 <div
                   aria-hidden
-                  className="w-full bg-secondary rounded-2xl pb-8 px-4 mt-12"
+                  className="w-full bg-secondary rounded-2xl pt-8 px-4 mt-12 overflow-hidden"
                 >
                   <Image
                     src="/hero-image.png"
                     alt="logo"
                     width={1000}
                     height={1000}
-                    className="w-full h-full object-cover  -z-20 scale-150 sm:scale-100"
+                    className="w-full h-full object-cover  -z-20 scale-120 sm:scale-100"
                   />
                 </div>
               </AnimatedGroup>
