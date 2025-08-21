@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={cn(`font-sans antialiased bg-foreground`, sfProDisplay.variable)}
+        className={cn(`font-sans antialiased bg-background`, sfProDisplay.variable)}
       >
         <AppProviders>{children}</AppProviders>
       </body>

@@ -23,7 +23,7 @@ export const AuroraBackground = ({
         )}
         {...props}
       >
-        {/* <div
+        <div
           className="absolute inset-0 overflow-hidden"
           style={
             {
@@ -54,9 +54,9 @@ export const AuroraBackground = ({
                 `[mask-image:radial-gradient(ellipse_at_100%_0%,black_10%,var(--transparent)_70%)]`,
             )}
           ></div>
-        </div> */}
+        </div>
         {children}
-        <div className="absolute inset-0 opacity-70">
+        {/* <div className="absolute inset-0 opacity-70">
           <Plasma
             color="#8DFEB5"
             speed={0.2}
@@ -65,7 +65,7 @@ export const AuroraBackground = ({
             opacity={0.8}
             mouseInteractive={false}
           />
-        </div>
+        </div> */}
       </div>
     </main>
   );

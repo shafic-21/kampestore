@@ -43,7 +43,7 @@ export default function HeroSection() {
                 preset="fade-in-blur"
                 speedSegment={0.3}
                 as="h1"
-                className="text-balance text-4xl sm:text-6xl font-bold md:text-7xl text-background"
+                className="text-balance text-4xl sm:text-6xl font-bold md:text-7xl text-foreground"
               >
                 Design and earn sweet, sweet cash.
               </TextEffect>
@@ -53,7 +53,7 @@ export default function HeroSection() {
                 speedSegment={0.3}
                 delay={0.5}
                 as="p"
-                className="mx-auto mt-6 max-w-2xl text-pretty text-lg lg:text-2xl text-background"
+                className="mx-auto mt-6 max-w-2xl text-pretty text-lg lg:text-2xl text-foreground"
               >
                 Place your art on quality products, from tees and hoodies to
                 mugs, and start selling. It’s fun, easy, and quick to get
