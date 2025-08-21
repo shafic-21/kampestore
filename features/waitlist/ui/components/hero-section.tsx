@@ -35,7 +35,7 @@ export default function HeroSection() {
     <>
       {/* <HeroHeader /> */}
 
-      <main className="overflow-hidden max-h-screen [--color-primary-foreground:var(--color-white)] [--color-primary:var(--color-green-600)]">
+      <main className=" [--color-primary-foreground:var(--color-white)] [--color-primary:var(--color-green-600)]">
         <section>
           <AnimatedGroup
             variants={
