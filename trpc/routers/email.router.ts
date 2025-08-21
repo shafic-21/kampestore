@@ -5,14 +5,14 @@ import { MagicLinkEmail } from "@/components/emails/magic-link";
 import { createTRPCRouter, publicProcedure } from "../init";
 import { TRPCError } from "@trpc/server";
 
-export const emailRouter = createTRPCRouter({
+export const emailRouter = {
   sendMagicLink: publicProcedure
     .input(
       z.object({
         email: z.email(),
         token: z.string(),
         url: z.string(),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const apiKey = process.env.RESEND_API_KEY;
@@ -27,7 +27,7 @@ export const emailRouter = createTRPCRouter({
       try {
         const { url, token, email } = input;
         const html = await render(
-          MagicLinkEmail({ loginCode: token, loginUrl: url }),
+          MagicLinkEmail({ loginCode: token, loginUrl: url })
         );
 
         await resend.emails.send({
@@ -50,4 +50,4 @@ export const emailRouter = createTRPCRouter({
         });
       }
     }),
-});
+};

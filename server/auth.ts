@@ -3,7 +3,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/server/db";
 import * as schema from "@/server/db/schema/auth";
 import { magicLink } from "better-auth/plugins";
-import { trpc } from "@/trpc/server";
+import { Resend } from "resend";
+import { render } from "@react-email/components";
+import { MagicLinkEmail } from "@/components/emails/magic-link";
 
 const webURL = process.env.CORS_ORIGIN;
 
@@ -26,7 +28,20 @@ export const auth = betterAuth({
   plugins: [
     magicLink({
       async sendMagicLink(data) {
-        await trpc.emailRouter.sendMagicLink(data);
+        const apiKey = process.env.RESEND_API_KEY;
+        if (!apiKey) {
+          throw new Error("RESEND_API_KEY environment variable is required");
+        }
+        const resend = new Resend(apiKey);
+        const html = await render(
+          MagicLinkEmail({ loginCode: data.token, loginUrl: data.url })
+        );
+        await resend.emails.send({
+          from: "no-reply@kampestore.com",
+          to: data.email,
+          subject: "Use this code to login",
+          html,
+        });
         console.log(`Magic link sent to ${data.email}`);
       },
     }),
