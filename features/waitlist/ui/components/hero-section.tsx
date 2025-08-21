@@ -35,7 +35,7 @@ export default function HeroSection() {
     <>
       {/* <HeroHeader /> */}
 
-      <main className=" [--color-primary-foreground:var(--color-white)] [--color-primary:var(--color-green-600)]">
+      <main className=" min-h-screen [--color-primary-foreground:var(--color-white)] [--color-primary:var(--color-green-600)]">
         <section>
           <AnimatedGroup
             variants={
@@ -53,7 +53,7 @@ export default function HeroSection() {
             }
             className="isolate relative"
           >
-            <div className="relative mx-auto max-w-6xl px-6 pb-20 pt-20 lg:pt-20">
+            <div className="relative mx-auto max-w-6xl px-6 pb-20 pt-20 lg:pt-12">
               <div className="relative z-10 mx-auto max-w-4xl text-center">
                 <div className="flex justify-center mb-10">
                   <Logo />
@@ -93,7 +93,7 @@ export default function HeroSection() {
 
                 <div
                   aria-hidden
-                  className="w-full bg-secondary rounded-2xl pt-8 px-4 mt-12 overflow-hidden"
+                  className="w-full bg-secondary rounded-2xl pt-4 px-4 mt-12 overflow-hidden"
                 >
                   <Image
                     src="/hero-image.png"
