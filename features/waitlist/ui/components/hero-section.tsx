@@ -6,6 +6,9 @@ import type { Variants } from "motion/react";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
 import { WaitlistForm } from "@/features/waitlist/ui/components/waitlist-form";
+import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
+import { cn } from "@/lib/utils";
+import { ArrowRightIcon } from "lucide-react";
 
 const transitionVariants = {
   item: {
@@ -32,12 +35,23 @@ export default function HeroSection() {
     <>
       {/* <HeroHeader /> */}
 
-      <main className="overflow-hidden [--color-primary-foreground:var(--color-white)] [--color-primary:var(--color-green-600)]">
+      <main className="overflow-hidden max-h-screen [--color-primary-foreground:var(--color-white)] [--color-primary:var(--color-green-600)]">
         <section>
           <div className="relative mx-auto max-w-6xl px-6 pb-20 pt-20 lg:pt-20">
             <div className="relative z-10 mx-auto max-w-4xl text-center">
               <div className="flex justify-center mb-10">
                 <Logo />
+              </div>
+
+              <div
+                className={cn(
+                  "group rounded-full border border-black/5 bg-white text-base text-white transition-all ease-in  w-fit mx-auto"
+                )}
+              >
+                <AnimatedShinyText className="inline-flex items-center justify-center px-4 py-1 transition ease-out hover:text-neutral-600 hover:duration-300 hover:dark:text-neutral-400">
+                  <span>✨ Launching soon!</span>
+                  <ArrowRightIcon className="ml-1 size-3 transition-transform duration-300 ease-in-out group-hover:translate-x-0.5" />
+                </AnimatedShinyText>
               </div>
               <TextEffect
                 preset="fade-in-blur"
@@ -80,7 +94,7 @@ export default function HeroSection() {
 
                 <div
                   aria-hidden
-                  className="bg-radial  relative mx-auto mt-16 max-w-4xl to-transparent to-55% text-left isolate "
+                  className="w-full bg-secondary rounded-2xl pb-8 px-4 mt-12"
                 >
                   <Image
                     src="/hero-image.png"
@@ -89,7 +103,6 @@ export default function HeroSection() {
                     height={1000}
                     className="w-full h-full object-cover  -z-20 scale-150 sm:scale-100"
                   />
-                  {/* <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] mix-blend-overlay [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] dark:opacity-5"></div> */}
                 </div>
               </AnimatedGroup>
             </div>

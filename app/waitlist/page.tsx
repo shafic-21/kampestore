@@ -4,9 +4,9 @@ import { AuroraBackground } from "@/components/ui/aurora-background";
 function Page() {
   return (
     <div>
-      <AuroraBackground >
+      {/* <AuroraBackground > */}
         <HeroSection />
-      </AuroraBackground>
+      {/* </AuroraBackground> */}
     </div>
   );
 }
