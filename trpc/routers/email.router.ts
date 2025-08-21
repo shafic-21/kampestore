@@ -12,7 +12,7 @@ export const emailRouter = {
         email: z.email(),
         token: z.string(),
         url: z.string(),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       const apiKey = process.env.RESEND_API_KEY;
@@ -27,7 +27,7 @@ export const emailRouter = {
       try {
         const { url, token, email } = input;
         const html = await render(
-          MagicLinkEmail({ loginCode: token, loginUrl: url }),
+          MagicLinkEmail({ loginCode: token, loginUrl: url })
         );
 
         await resend.emails.send({

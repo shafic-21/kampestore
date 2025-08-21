@@ -56,11 +56,11 @@ export const AuroraBackground = ({
           ></div>
         </div> */}
         {children}
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 opacity-70">
           <Plasma
             color="#8DFEB5"
             speed={0.2}
-            direction="reverse"
+            direction="forward"
             scale={1.1}
             opacity={0.8}
             mouseInteractive={false}

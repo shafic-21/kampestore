@@ -1,12 +1,11 @@
 import React from "react";
-import { Mail, SendHorizonal } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { TextEffect } from "@/components/ui/text-effect";
 import { AnimatedGroup } from "@/components/ui/animated-group";
 import { HeroHeader } from "./header";
 import type { Variants } from "motion/react";
 import Image from "next/image";
 import { Logo } from "@/components/logo";
+import { WaitlistForm } from "@/features/waitlist/ui/components/waitlist-form";
 
 const transitionVariants = {
   item: {
@@ -44,7 +43,7 @@ export default function HeroSection() {
                 preset="fade-in-blur"
                 speedSegment={0.3}
                 as="h1"
-                className="text-balance text-6xl font-bold md:text-7xl text-background"
+                className="text-balance text-4xl sm:text-6xl font-bold md:text-7xl text-background"
               >
                 Design and earn sweet, sweet cash.
               </TextEffect>
@@ -54,7 +53,7 @@ export default function HeroSection() {
                 speedSegment={0.3}
                 delay={0.5}
                 as="p"
-                className="mx-auto mt-6 max-w-2xl text-pretty text-2xl text-background"
+                className="mx-auto mt-6 max-w-2xl text-pretty text-lg lg:text-2xl text-background"
               >
                 Place your art on quality products, from tees and hoodies to
                 mugs, and start selling. It’s fun, easy, and quick to get
@@ -77,31 +76,7 @@ export default function HeroSection() {
                 }
                 className="mt-12 isolate relative"
               >
-                <form action="" className="mx-auto max-w-sm z-50">
-                  <div className="bg-background has-[input:focus]:ring-muted relative grid grid-cols-[1fr_auto] items-center rounded-[calc(var(--radius)+0.5rem)] border pr-2 shadow shadow-zinc-950/5 has-[input:focus]:ring-2">
-                    <Mail className="pointer-events-none absolute inset-y-0 left-4 my-auto size-4" />
-
-                    <input
-                      placeholder="Your mail address"
-                      className="h-12 w-full bg-transparent pl-12 focus:outline-none"
-                      type="email"
-                    />
-
-                    <div className="md:pr-1.5 lg:pr-0">
-                      <Button
-                        aria-label="submit"
-                        size="sm"
-                        className="rounded-(--radius)"
-                      >
-                        <span className="hidden md:block">Join the waitlist</span>
-                        <SendHorizonal
-                          className="relative mx-auto size-5 md:hidden"
-                          strokeWidth={2}
-                        />
-                      </Button>
-                    </div>
-                  </div>
-                </form>
+                <WaitlistForm />
 
                 <div
                   aria-hidden
@@ -112,7 +87,7 @@ export default function HeroSection() {
                     alt="logo"
                     width={1000}
                     height={1000}
-                    className="w-full h-full object-cover  -z-20"
+                    className="w-full h-full object-cover  -z-20 scale-150 sm:scale-100"
                   />
                   {/* <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] mix-blend-overlay [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] dark:opacity-5"></div> */}
                 </div>
