@@ -5,7 +5,7 @@ import { MagicLinkEmail } from "@/components/emails/magic-link";
 import { createTRPCRouter, publicProcedure } from "../init";
 import { TRPCError } from "@trpc/server";
 
-export const emailRouter = createTRPCRouter({
+export const emailRouter = {
   sendMagicLink: publicProcedure
     .input(
       z.object({
@@ -50,4 +50,4 @@ export const emailRouter = createTRPCRouter({
         });
       }
     }),
-});
+};
