@@ -583,3 +583,6 @@ I'll create a product listing component using server-side data fetching...
 Remember: These rules are **NON-NEGOTIABLE**. Follow them exactly as written.
 
 - nextjs 15+  params should be awaited
+- this is how we access auth on the server:   const session = await auth.api.getSession({
+    headers: Headers
+  });
