@@ -1,5 +1,5 @@
 import { createTRPCRouter } from "../init";
-import { waitlistRouter } from "./waitlist.router";
+import { waitlistRouter } from "@/features/waitlist/server/waitlist.router";
 import { authRouter } from "@/features/auth/server/auth.router";
 
 export const appRouter = createTRPCRouter({
