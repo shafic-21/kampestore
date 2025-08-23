@@ -46,7 +46,7 @@ const isAuthenticated = t.middleware(({ ctx, next }) => {
 });
 
 // Base router and procedure helpers
-export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
 export const publicProcedure = t.procedure;
 export const protectedProcedure = t.procedure.use(isAuthenticated);
+export const createTRPCRouter = t.router;

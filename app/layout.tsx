@@ -16,7 +16,8 @@ const sfProDisplay = localFont({
 
 export const metadata: Metadata = {
   title: "KampeStore",
-  description: "the print-on-demand platform for creators to design custom products and sell them online.",
+  description:
+    "the print-on-demand platform for creators to design custom products and sell them online.",
 };
 
 export default function RootLayout({
@@ -27,9 +28,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={cn(`font-sans antialiased bg-background`, sfProDisplay.variable)}
+        className={cn(
+          `font-sans antialiased bg-background`,
+          sfProDisplay.variable,
+        )}
       >
-        <AppProviders>{children}</AppProviders>
+        <AppProviders>
+          <main className="min-h-screen">{children}</main>
+        </AppProviders>
       </body>
     </html>
   );

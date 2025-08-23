@@ -1,4 +1,3 @@
-import SignIn from "@/components/auth-button";
 import { auth } from "@/server/auth";
 import { headers } from "next/headers";
 
@@ -10,7 +9,7 @@ export default async function Page() {
         <h1 className="text-2xl font-bold">
           Hello, {data?.user?.email || "Guest"}
         </h1>
-        <SignIn />
+        hello
       </div>
     </div>
   );

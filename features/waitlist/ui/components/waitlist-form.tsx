@@ -10,7 +10,7 @@ export function WaitlistForm() {
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
 
-  const addToWaitlist = trpc.waitlistRouter.addToWaitlist.useMutation({
+  const addToWaitlist = trpc.waitlist.addToWaitlist.useMutation({
     onSuccess: (data) => {
       setStatus("success");
       setMessage(data.message);

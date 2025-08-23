@@ -1,20 +1,20 @@
 import Image from "next/image";
-import { cn } from "../lib/utils";
+import { cn } from "../../lib/utils";
 
 export const Logo = ({
   className,
-  uniColor,
+  src="/logo.svg"
 }: {
   className?: string;
-  uniColor?: boolean;
+  src?: string;
 }) => {
   return (
     <Image
-      src="/logo.svg"
+      src={src}
       alt="logo"
       width={200}
       height={200}
-      className="w-auto h-10 object-contain"
+      className={cn("w-auto h-10 object-contain", className)}
     />
   );
 };
