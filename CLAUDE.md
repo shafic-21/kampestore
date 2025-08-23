@@ -581,3 +581,5 @@ I'll create a product listing component using server-side data fetching...
 ---
 - onSuccess and onError callbacks were removed in TanStack Query v5, which tRPC v11 uses.
 Remember: These rules are **NON-NEGOTIABLE**. Follow them exactly as written.
+
+- nextjs 15+  params should be awaited

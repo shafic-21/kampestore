@@ -2,10 +2,10 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/server/db";
 import * as schema from "@/server/db/schema/auth";
-import { Resend } from "resend";
+import { emailOTP } from "better-auth/plugins";
+import { OTPWithMagicLinkEmail } from "@/features/auth/email-templates/otp-with-magic-link";
 import { render } from "@react-email/components";
-import { magicLink, emailOTP } from "better-auth/plugins";
-import { MagicLinkEmail } from "@/features/auth/email-templates/magic-link";
+import { Resend } from "resend";
 
 const webURL = process.env.CORS_ORIGIN;
 
@@ -26,24 +26,36 @@ export const auth = betterAuth({
   }),
   trustedOrigins: [webURL],
   plugins: [
-    magicLink({
-      async sendMagicLink(data) {
-        const apiKey = process.env.RESEND_API_KEY;
-        if (!apiKey) {
-          throw new Error("RESEND_API_KEY environment variable is required");
+    emailOTP({
+      async sendVerificationOTP({ email, otp, type }) {
+        if (type === "sign-in") {
+          const apiKey = process.env.RESEND_API_KEY;
+          if (!apiKey) {
+            throw new Error("RESEND_API_KEY environment variable is required");
+          }
+
+          const resend = new Resend(apiKey);
+          const html = await render(
+            OTPWithMagicLinkEmail({
+              otp,
+            }),
+          );
+
+          await resend.emails.send({
+            from: "no-reply@kampestore.com",
+            to: email,
+            subject: `${otp} is your verification code.`,
+            html,
+          });
+        } else if (type === "email-verification") {
+        } else {
         }
-        const resend = new Resend(apiKey);
-        const html = await render(
-          MagicLinkEmail({ loginCode: data.token, loginUrl: data.url })
-        );
-        await resend.emails.send({
-          from: "no-reply@kampestore.com",
-          to: data.email,
-          subject: "Use this code to login",
-          html,
-        });
-        console.log(`Magic link sent to ${data.email}`);
       },
+      otpLength: 6,
+      expiresIn: 300,
+      overrideDefaultEmailVerification: true,
+      allowedAttempts: 3,
+      sendVerificationOnSignUp: true,
     }),
   ],
   secret: process.env.BETTER_AUTH_SECRET,

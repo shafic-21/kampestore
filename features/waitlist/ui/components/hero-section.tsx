@@ -1,10 +1,9 @@
 import React from "react";
 import { TextEffect } from "@/components/ui/text-effect";
 import { AnimatedGroup } from "@/components/ui/animated-group";
-import { HeroHeader } from "./header";
 import type { Variants } from "motion/react";
 import Image from "next/image";
-import { Logo } from "@/components/logo";
+import { Logo } from "@/components/brand/logo";
 import { WaitlistForm } from "@/features/waitlist/ui/components/waitlist-form";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { cn } from "@/lib/utils";

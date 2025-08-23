@@ -18,10 +18,6 @@ export const fullNameSchema = z
   .max(100, "Full name must be at most 100 characters")
   .regex(/^[a-zA-Z\s]+$/, "Full name must contain only letters and spaces");
 
-export const checkUserExistsSchema = z.object({
-  email: emailSchema,
-});
-
 export const signUpSchema = z.object({
   email: emailSchema,
   phone: phoneSchema,
@@ -32,6 +28,5 @@ export const signInSchema = z.object({
   email: emailSchema,
 });
 
-export type CheckUserExistsInput = z.infer<typeof checkUserExistsSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;

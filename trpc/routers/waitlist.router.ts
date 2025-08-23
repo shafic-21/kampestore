@@ -9,7 +9,7 @@ export const waitlistRouter = {
     .input(
       z.object({
         email: z.email("Please enter a valid email address"),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       try {
