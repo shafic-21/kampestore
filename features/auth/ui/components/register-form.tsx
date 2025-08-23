@@ -14,60 +14,46 @@ import {
 import { signIn, authClient } from "@/lib/auth-client";
 import { trpc } from "@/trpc/client";
 import Link from "next/link";
+import { useDebouncedValidation } from "../../hooks/use-debounced-validation";
 
 export function RegisterForm() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
-  const [errors, setErrors] = useState<{
-    email?: string;
-    phone?: string;
-    fullName?: string;
-  }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOTPForm, setShowOTPForm] = useState(false);
 
+  // Debounced validation hooks - much better performance!
+  const { error: emailError, isValidating: emailValidating } = useDebouncedValidation(
+    email,
+    emailSchema,
+    300 // 300ms debounce
+  );
+
+  const { error: phoneError, isValidating: phoneValidating } = useDebouncedValidation(
+    phone,
+    phoneSchema,
+    300
+  );
+
+  const { error: fullNameError, isValidating: fullNameValidating } = useDebouncedValidation(
+    fullName,
+    fullNameSchema,
+    300
+  );
+
+  // Simple handlers without validation - validation is handled by hooks
   const handleEmailChange = (value: string) => {
     setEmail(value);
-
-    const emailValidation = emailSchema.safeParse(value);
-    if (!emailValidation.success && value) {
-      setErrors((prev) => ({
-        ...prev,
-        email: emailValidation.error.errors[0].message,
-      }));
-    } else {
-      setErrors((prev) => ({ ...prev, email: undefined }));
-    }
   };
 
   const handlePhoneChange = (value: string) => {
     const cleanValue = value.replace(/\D/g, "");
     setPhone(cleanValue);
-
-    const phoneValidation = phoneSchema.safeParse(cleanValue);
-    if (!phoneValidation.success && cleanValue) {
-      setErrors((prev) => ({
-        ...prev,
-        phone: phoneValidation.error.errors[0].message,
-      }));
-    } else {
-      setErrors((prev) => ({ ...prev, phone: undefined }));
-    }
   };
 
   const handleFullNameChange = (value: string) => {
     setFullName(value);
-
-    const nameValidation = fullNameSchema.safeParse(value);
-    if (!nameValidation.success && value) {
-      setErrors((prev) => ({
-        ...prev,
-        fullName: nameValidation.error.errors[0].message,
-      }));
-    } else {
-      setErrors((prev) => ({ ...prev, fullName: undefined }));
-    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -84,10 +70,12 @@ export function RegisterForm() {
     }
   };
 
+  const [submitError, setSubmitError] = useState<string | undefined>();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setErrors({});
+    setSubmitError(undefined);
 
     try {
       const { data, error } = await authClient.emailOtp.sendVerificationOtp({
@@ -96,10 +84,7 @@ export function RegisterForm() {
       });
 
       if (error) {
-        setErrors((prev) => ({
-          ...prev,
-          email: error.message || "Failed to send verification code. Please try again.",
-        }));
+        setSubmitError(error.message || "Failed to send verification code. Please try again.");
         return;
       }
 
@@ -108,13 +93,11 @@ export function RegisterForm() {
       }
     } catch (error: any) {
       console.error("Registration failed:", error);
-      setErrors((prev) => ({
-        ...prev,
-        email:
-          error?.message || 
-          error?.error?.message ||
-          "Failed to send verification code. Please try again.",
-      }));
+      setSubmitError(
+        error?.message || 
+        error?.error?.message ||
+        "Failed to send verification code. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -122,12 +105,20 @@ export function RegisterForm() {
 
   const handleBackToForm = () => {
     setShowOTPForm(false);
+    setSubmitError(undefined);
   };
 
-  const isFormValid =
-    emailSchema.safeParse(email).success &&
-    phoneSchema.safeParse(phone).success &&
-    fullNameSchema.safeParse(fullName).success;
+  // Check if form is valid using debounced validation results
+  const isFormValid = 
+    !emailError && 
+    !phoneError && 
+    !fullNameError && 
+    email.trim() !== "" && 
+    phone.trim() !== "" && 
+    fullName.trim() !== "" &&
+    !emailValidating && 
+    !phoneValidating && 
+    !fullNameValidating;
 
   const isLoading = isSubmitting;
 
@@ -216,7 +207,7 @@ export function RegisterForm() {
                 value={email}
                 onChange={handleEmailChange}
                 disabled={isLoading}
-                error={errors.email}
+                error={emailError}
               />
 
               <InsetLabelInput
@@ -227,7 +218,7 @@ export function RegisterForm() {
                 onChange={handlePhoneChange}
                 prefix="+256"
                 isPhoneInput={true}
-                error={errors.phone}
+                error={phoneError}
               />
 
               <InsetLabelInput
@@ -236,8 +227,15 @@ export function RegisterForm() {
                 placeholder="Full name"
                 value={fullName}
                 onChange={handleFullNameChange}
-                error={errors.fullName}
+                error={fullNameError}
               />
+              
+              {/* Show submit error if any */}
+              {submitError && (
+                <div className="text-sm text-red-600 mt-2">
+                  {submitError}
+                </div>
+              )}
             </div>
           </div>
 

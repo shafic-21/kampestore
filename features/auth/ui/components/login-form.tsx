@@ -10,25 +10,25 @@ import { emailSchema } from "../../lib/validations";
 import { signIn, authClient } from "@/lib/auth-client";
 import { trpc } from "@/trpc/client";
 import Link from "next/link";
+import { useDebouncedValidation } from "../../hooks/use-debounced-validation";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
-  const [errors, setErrors] = useState<{ email?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOTPForm, setShowOTPForm] = useState(false);
+  const [submitError, setSubmitError] = useState<string | undefined>();
+
+  // Debounced validation hook
+  const { error: emailError, isValidating: emailValidating } = useDebouncedValidation(
+    email,
+    emailSchema,
+    300 // 300ms debounce
+  );
 
   const handleEmailChange = (value: string) => {
     setEmail(value);
-
-    const emailValidation = emailSchema.safeParse(value);
-    if (!emailValidation.success && value) {
-      setErrors((prev) => ({
-        ...prev,
-        email: emailValidation.error.errors[0].message,
-      }));
-    } else {
-      setErrors((prev) => ({ ...prev, email: undefined }));
-    }
+    // Clear submit error when user starts typing
+    if (submitError) setSubmitError(undefined);
   };
 
   const handleGoogleSignIn = async () => {
@@ -56,17 +56,14 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setErrors({});
+    setSubmitError(undefined);
 
     try {
       // First check if user exists
       const userExistsResult = await checkUserExists.refetch();
       
       if (!userExistsResult.data?.exists) {
-        setErrors((prev) => ({
-          ...prev,
-          email: "Email not found. Please sign up first or check your email address.",
-        }));
+        setSubmitError("Email not found. Please sign up first or check your email address.");
         return;
       }
 
@@ -77,10 +74,7 @@ export function LoginForm() {
       });
 
       if (error) {
-        setErrors((prev) => ({
-          ...prev,
-          email: error.message || "Failed to send verification code. Please try again.",
-        }));
+        setSubmitError(error.message || "Failed to send verification code. Please try again.");
         return;
       }
 
@@ -89,13 +83,11 @@ export function LoginForm() {
       }
     } catch (error: any) {
       console.error("Login failed:", error);
-      setErrors((prev) => ({
-        ...prev,
-        email:
-          error?.message || 
-          error?.error?.message ||
-          "Failed to send verification code. Please try again.",
-      }));
+      setSubmitError(
+        error?.message || 
+        error?.error?.message ||
+        "Failed to send verification code. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -104,10 +96,11 @@ export function LoginForm() {
   const handleBackToEmail = () => {
     setShowOTPForm(false);
     setEmail("");
-    setErrors({});
+    setSubmitError(undefined);
   };
 
-  const isFormValid = emailSchema.safeParse(email).success;
+  // Check if form is valid using debounced validation results
+  const isFormValid = !emailError && email.trim() !== "" && !emailValidating;
   const isLoading = isSubmitting;
 
   if (showOTPForm) {
@@ -190,8 +183,15 @@ export function LoginForm() {
               value={email}
               onChange={handleEmailChange}
               disabled={isLoading}
-              error={errors.email}
+              error={emailError}
             />
+            
+            {/* Show submit error if any */}
+            {submitError && (
+              <div className="text-sm text-red-600 mt-2">
+                {submitError}
+              </div>
+            )}
           </div>
 
           <motion.div

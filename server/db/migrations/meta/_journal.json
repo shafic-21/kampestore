@@ -8,6 +8,13 @@
       "when": 1755974857958,
       "tag": "0000_heavy_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1755986186554,
+      "tag": "0001_deep_chamber",
+      "breakpoints": true
     }
   ]
 }
