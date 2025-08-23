@@ -2,10 +2,10 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/server/db";
 import * as schema from "@/server/db/schema/auth";
-import { magicLink } from "better-auth/plugins";
 import { Resend } from "resend";
 import { render } from "@react-email/components";
-import { MagicLinkEmail } from "@/components/emails/magic-link";
+import { magicLink, emailOTP } from "better-auth/plugins";
+import { MagicLinkEmail } from "@/features/auth/email-templates/magic-link";
 
 const webURL = process.env.CORS_ORIGIN;
 

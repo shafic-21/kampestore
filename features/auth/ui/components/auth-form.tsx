@@ -12,25 +12,50 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import { authClient, signIn, signOut } from "@/lib/auth-client";
+import { signIn, signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { TokenVerificationForm } from "@/components/token-verification-form";
 
-export default function SignIn() {
+type Props = {
+  mode: "signin" | "signup";
+};
+
+export default function AuthForm({ mode }: Props) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
 
-  if (emailSent) {
-    return (
-      <TokenVerificationForm
-        email={email}
-        onResendSuccess={() => {
-          setEmailSent(false);
-        }}
-      />
+  const handleSignIn = async () => {
+    await signIn.magicLink(
+      {
+        email,
+        callbackURL: "/",
+      },
+      {
+        onRequest: (ctx) => {
+          setLoading(true);
+        },
+        onResponse: (ctx) => {
+          setLoading(false);
+        },
+      },
     );
-  }
+  };
+
+  const handleGoogleSignIn = async () => {
+    await signIn.social(
+      {
+        provider: "google",
+        callbackURL: "/",
+      },
+      {
+        onRequest: (ctx) => {
+          setLoading(true);
+        },
+        onResponse: (ctx) => {
+          setLoading(false);
+        },
+      },
+    );
+  };
 
   return (
     <Card className="w-md">
@@ -54,32 +79,11 @@ export default function SignIn() {
               }}
               value={email}
             />
-            <Button
-              disabled={loading}
-              className="gap-2"
-              onClick={async () => {
-                await signIn.magicLink(
-                  {
-                    email,
-                  },
-                  {
-                    onRequest: () => {
-                      setLoading(true);
-                    },
-                    onResponse: () => {
-                      setLoading(false);
-                    },
-                    onSuccess: () => {
-                      setEmailSent(true);
-                    },
-                  }
-                );
-              }}
-            >
+            <Button disabled={loading} className="gap-2" onClick={handleSignIn}>
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
-                <span>Send Magic Link</span>
+                <span> Sign-in with Magic Link</span>
               )}
             </Button>
           </div>
@@ -87,29 +91,14 @@ export default function SignIn() {
           <div
             className={cn(
               "w-full gap-2 flex items-center",
-              "justify-between flex-col"
+              "justify-between flex-col",
             )}
           >
             <Button
               variant="outline"
               className={cn("w-full gap-2")}
               disabled={loading}
-              onClick={async () => {
-                await signIn.social(
-                  {
-                    provider: "google",
-                    callbackURL: "/",
-                  },
-                  {
-                    onRequest: (ctx) => {
-                      setLoading(true);
-                    },
-                    onResponse: (ctx) => {
-                      setLoading(false);
-                    },
-                  }
-                );
-              }}
+              onClick={handleGoogleSignIn}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
