@@ -3,10 +3,10 @@ import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { db } from "@/server/db";
 import { creators } from "@/server/db/schema/creators";
 import { eq, and } from "drizzle-orm";
-import { 
-  createCreatorSchema, 
+import {
+  createCreatorSchema,
   checkSlugSchema,
-  generateSlugFromStoreName 
+  generateSlugFromStoreName,
 } from "../lib/validations";
 import { TRPCError } from "@trpc/server";
 
@@ -32,7 +32,7 @@ export const creatorsRouter = createTRPCRouter({
     .input(z.object({ storeName: z.string() }))
     .query(async ({ input }) => {
       const baseSlug = generateSlugFromStoreName(input.storeName);
-      
+
       if (!baseSlug) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -81,7 +81,14 @@ export const creatorsRouter = createTRPCRouter({
   createCreator: protectedProcedure
     .input(createCreatorSchema)
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
+      const userId = ctx.userId;
+
+      if (!userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "User is not authenticated",
+        });
+      }
 
       // Check if user already has a creator profile
       const existingCreator = await db
@@ -131,7 +138,14 @@ export const creatorsRouter = createTRPCRouter({
 
   // Get current user's creator profile
   getMyCreatorProfile: protectedProcedure.query(async ({ ctx }) => {
-    const userId = ctx.session.user.id;
+    const userId = ctx.userId;
+
+    if (!userId) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "User is not authenticated",
+      });
+    }
 
     const [creator] = await db
       .select({
