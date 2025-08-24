@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { z } from 'zod/v4';
-import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
+import { useEffect, useState } from "react";
+import { z } from "zod/v4";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface DebouncedValidationResult {
   error: string | undefined;
@@ -9,7 +9,7 @@ interface DebouncedValidationResult {
 
 /**
  * Hook for debounced form validation with Zod schemas
- * 
+ *
  * @param value - The value to validate
  * @param schema - Zod schema to validate against
  * @param debounceMs - Debounce delay in milliseconds (default: 300ms)
@@ -23,51 +23,39 @@ export function useDebouncedValidation<T>(
   const [error, setError] = useState<string | undefined>();
   const [isValidating, setIsValidating] = useState(false);
 
-  // Debounced validation function
-  const debouncedValidate = useDebouncedCallback((val: string) => {
-    // Skip validation for empty values
-    if (!val.trim()) {
+  const debouncedValue = useDebounce<string>(value, debounceMs);
+
+  // Mark validating on input changes; clear when empty
+  useEffect(() => {
+    if (!value.trim()) {
+      setError(undefined);
+      setIsValidating(false);
+      return;
+    }
+    setIsValidating(true);
+  }, [value]);
+
+  // Validate when the debounced value settles
+  useEffect(() => {
+    if (!debouncedValue.trim()) {
       setError(undefined);
       setIsValidating(false);
       return;
     }
 
     try {
-      const result = schema.safeParse(val);
+      const result = schema.safeParse(debouncedValue);
       if (result.success) {
         setError(undefined);
       } else {
-        // In Zod v4, error.issues contains the validation errors
-        setError(result.error.issues[0]?.message || 'Validation error');
+        setError(result.error.issues[0]?.message || "Validation error");
       }
-    } catch (err) {
-      // Handle any unexpected validation errors
-      setError('Validation error occurred');
+    } catch {
+      setError("Validation error occurred");
     } finally {
       setIsValidating(false);
     }
-  }, debounceMs);
-
-  // Trigger validation when value changes
-  useEffect(() => {
-    if (value.trim()) {
-      setIsValidating(true);
-    }
-    debouncedValidate(value);
-    
-    // Cleanup debounced function on unmount
-    return () => {
-      // Note: debounced function cleanup is handled by the debounce utility
-    };
-  }, [value, debouncedValidate]);
-
-  // Reset error immediately when value becomes empty
-  useEffect(() => {
-    if (!value.trim()) {
-      setError(undefined);
-      setIsValidating(false);
-    }
-  }, [value]);
+  }, [debouncedValue, schema]);
 
   return { error, isValidating };
 }
@@ -75,7 +63,7 @@ export function useDebouncedValidation<T>(
 /**
  * Hook for immediate validation without debouncing
  * Useful for validation on blur or form submission
- * 
+ *
  * @param value - The value to validate
  * @param schema - Zod schema to validate against
  * @returns Object with error message and validation state
@@ -98,10 +86,10 @@ export function useImmediateValidation<T>(
         setError(undefined);
       } else {
         // In Zod v4, error.issues contains the validation errors
-        setError(result.error.issues[0]?.message || 'Validation error');
+        setError(result.error.issues[0]?.message || "Validation error");
       }
     } catch (err) {
-      setError('Validation error occurred');
+      setError("Validation error occurred");
     }
   }, [value, schema]);
 
