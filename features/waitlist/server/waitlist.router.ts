@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { createTRPCRouter, publicProcedure } from "../init";
+import { createTRPCRouter, publicProcedure } from "../../../trpc/init";
 import { TRPCError } from "@trpc/server";
 import { db } from "@/server/db";
 import { waitlist } from "@/server/db/schema/waitlist";
