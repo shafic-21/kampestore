@@ -586,3 +586,5 @@ Remember: These rules are **NON-NEGOTIABLE**. Follow them exactly as written.
 - this is how we access auth on the server:   const session = await auth.api.getSession({
     headers: Headers
   });
+- When reating pages we shall use views to hold most of the page content except for really small stuff that can be rendered on the serever maybe we want to use trpc/tanstack prefetch, hydration boundaries.
+- views should be in /feature/ui/views

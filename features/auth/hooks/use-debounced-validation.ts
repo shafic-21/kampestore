@@ -1,18 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod/v4';
-
-// Utility debounce function
-function debounce<T extends (...args: any[]) => void>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
-  
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
+import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 
 interface DebouncedValidationResult {
   error: string | undefined;
@@ -36,32 +24,29 @@ export function useDebouncedValidation<T>(
   const [isValidating, setIsValidating] = useState(false);
 
   // Debounced validation function
-  const debouncedValidate = useCallback(
-    debounce((val: string) => {
-      // Skip validation for empty values
-      if (!val.trim()) {
-        setError(undefined);
-        setIsValidating(false);
-        return;
-      }
+  const debouncedValidate = useDebouncedCallback((val: string) => {
+    // Skip validation for empty values
+    if (!val.trim()) {
+      setError(undefined);
+      setIsValidating(false);
+      return;
+    }
 
-      try {
-        const result = schema.safeParse(val);
-        if (result.success) {
-          setError(undefined);
-        } else {
-          // In Zod v4, error.issues contains the validation errors
-          setError(result.error.issues[0]?.message || 'Validation error');
-        }
-      } catch (err) {
-        // Handle any unexpected validation errors
-        setError('Validation error occurred');
-      } finally {
-        setIsValidating(false);
+    try {
+      const result = schema.safeParse(val);
+      if (result.success) {
+        setError(undefined);
+      } else {
+        // In Zod v4, error.issues contains the validation errors
+        setError(result.error.issues[0]?.message || 'Validation error');
       }
-    }, debounceMs),
-    [schema, debounceMs]
-  );
+    } catch (err) {
+      // Handle any unexpected validation errors
+      setError('Validation error occurred');
+    } finally {
+      setIsValidating(false);
+    }
+  }, debounceMs);
 
   // Trigger validation when value changes
   useEffect(() => {

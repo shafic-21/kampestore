@@ -15,6 +15,13 @@
       "when": 1755986186554,
       "tag": "0001_deep_chamber",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1755990280412,
+      "tag": "0002_nosy_rocket_racer",
+      "breakpoints": true
     }
   ]
 }
