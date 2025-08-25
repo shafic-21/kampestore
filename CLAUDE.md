@@ -588,3 +588,8 @@ Remember: These rules are **NON-NEGOTIABLE**. Follow them exactly as written.
   });
 - When reating pages we shall use views to hold most of the page content except for really small stuff that can be rendered on the serever maybe we want to use trpc/tanstack prefetch, hydration boundaries.
 - views should be in /feature/ui/views
+- use the context7 mcp to get  Up-to-date code documentation
+- the buttons are already styled just use them as is no need to add custom classes use the different varaints and sizes and no icons.
+- Never put  🤖 Generated with [Claude Code](https://claude.ai/code)
+
+      Co-Authored-By: Claude <noreply@anthropic.com>") on any of my PRs and commits never!
