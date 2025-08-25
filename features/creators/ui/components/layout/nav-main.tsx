@@ -9,6 +9,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export function NavMain({
   items,
@@ -23,8 +25,8 @@ export function NavMain({
     }[];
   };
 }) {
-
-   const { title, items: itemsArray } = items;
+  const pathname = usePathname();
+  const { title, items: itemsArray } = items;
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -32,9 +34,15 @@ export function NavMain({
         <SidebarMenu>
           {itemsArray.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title}>
-                {item.icon && <item.icon />}
-                <span>{item.title}</span>
+              <SidebarMenuButton 
+                asChild 
+                tooltip={item.title}
+                isActive={pathname === item.url}
+              >
+                <Link href={item.url}>
+                  {item.icon && <item.icon />}
+                  <span>{item.title}</span>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
