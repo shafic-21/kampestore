@@ -39,7 +39,7 @@ export function QuickActions() {
         {quickActions.map((action, index) => {
           return (
             <Link key={index} href={action.href}>
-              <div className=" duration-200 cursor-pointer rounded-lg overflow-hidden">
+              <Card className=" duration-200 cursor-pointer rounded-lg overflow-hidden h-fit p-0">
                 <Image
                   src={action.imageSrc}
                   alt={action.imageAlt}
@@ -47,7 +47,7 @@ export function QuickActions() {
                   placeholder="blur"
                   priority={index < 3}
                 />
-              </div>
+              </Card>
             </Link>
           );
         })}

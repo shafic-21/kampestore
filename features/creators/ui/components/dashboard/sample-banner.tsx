@@ -17,7 +17,7 @@ export function SampleBanner() {
               </h2>
             </div>
 
-            <Link href="/creator/samples">
+            <Link href="/creator/design-launcher">
               <Button size="lg" className="">
                 Order a sample
               </Button>

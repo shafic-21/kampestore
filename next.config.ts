@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "d3vvxc53hv5hl7.cloudfront.net",
       },
+      {
+        protocol: "https",
+        hostname: "files.xapisoft.co",
+      },
     ],
   },
 };

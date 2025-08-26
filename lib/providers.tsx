@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { TRPCProvider } from "@/trpc/client";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 type ProviderTuple = [React.ElementType, Record<string, any>?];
 
@@ -18,6 +19,7 @@ function composeProviders(
 
 export const AppProviders = composeProviders(
   [TRPCProvider],
+  [NuqsAdapter],
   [
     NextThemesProvider,
     {
