@@ -4,19 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { ColorSwatchRow } from "./color-swatch";
-import { formatUgxCurrency } from "../../lib/utils";
-import type { BaseProductCard } from "../../types";
 import { cn } from "@/lib/utils";
+import type { BaseProductCard } from "@/features/creators/types/editor.types";
 
-interface ProductCardProps {
+interface BaseSkuCardProps {
   product: BaseProductCard;
   className?: string;
 }
 
-export function ProductCard({ product, className }: ProductCardProps) {
+export function BaseSkuCard({ product, className }: BaseSkuCardProps) {
   return (
     <div>
-      <Link href={`/creators/editor/${product.id}`} className="group block">
+      <Link href="/creator/editor-launcher" className="group block">
         <Card className={cn("p-0 border-none overflow-hidden", className)}>
           <div className="aspect-square relative overflow-hidden">
             <Image
@@ -42,11 +41,11 @@ export function ProductCard({ product, className }: ProductCardProps) {
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm">Base cost {formatUgxCurrency(product.cost)}</p>
+          <p className="text-sm">Base cost {product.cost}</p>
           <ColorSwatchRow
             colors={product.colors}
             totalColors={product.totalColors}
-            maxVisible={6}
+            maxVisible={10}
           />
         </div>
       </div>

@@ -6,13 +6,14 @@ interface ColorSwatchProps {
     hexColor: string;
     displayName: string;
   };
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   className?: string;
 }
 
-export function ColorSwatch({ color, size = "sm", className }: ColorSwatchProps) {
+export function ColorSwatch({ color, size = "xs", className }: ColorSwatchProps) {
   const sizeClasses = {
-    sm: "size-4",
+    xs: "size-3",
+    sm: "size-4", 
     md: "size-6",
   };
 
@@ -53,9 +54,9 @@ export function ColorSwatchRow({
   const remainingCount = totalColors - maxVisible;
 
   return (
-    <div className={cn("flex items-center gap-1.5", className)}>
+    <div className={cn("flex items-center gap-1", className)}>
       {visibleColors.map((color) => (
-        <ColorSwatch key={color.id} color={color} />
+        <ColorSwatch key={color.id} color={color} size="xs" />
       ))}
       {remainingCount > 0 && (
         <span className="text-sm text-muted-foreground ml-1">

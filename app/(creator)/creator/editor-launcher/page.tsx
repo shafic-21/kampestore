@@ -1,8 +1,10 @@
 import { auth } from "@/server/auth";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { trpc } from "@/trpc/server";
-import { ProductSelectionView } from "@/features/products/ui/views/product-selection-view";
+import { getQueryClient, trpc, HydrateClient } from "@/trpc/server";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+import { BaseSelectionView } from "@/features/creators/ui/views/base-selection-view";
+import { ErrorBoundary } from "react-error-boundary";
 
 interface SearchParams {
   q?: string;
@@ -14,10 +16,12 @@ interface PageProps {
   searchParams: Promise<SearchParams>;
 }
 
-export default async function ProductSelectionPage({ searchParams }: PageProps) {
+export default async function ProductSelectionPage({
+  searchParams,
+}: PageProps) {
   const params = await searchParams;
   const Headers = await headers();
-  
+
   // Check authentication
   const session = await auth.api.getSession({
     headers: Headers,
@@ -26,7 +30,7 @@ export default async function ProductSelectionPage({ searchParams }: PageProps) 
   if (!session) {
     redirect("/auth/sign-in");
   }
-  
+
   const creator = await trpc.creators.getMyCreatorProfile();
 
   if (!creator) {
@@ -41,8 +45,15 @@ export default async function ProductSelectionPage({ searchParams }: PageProps) 
     limit: 20,
   };
 
-  // Fetch product selection data
-  const data = await trpc.products.getProductSelectionData(filters);
+  // Prefetch product selection data
+  const queryClient = getQueryClient();
+  await trpc.baseSkus.listBaseProducts.prefetch(filters);
 
-  return <ProductSelectionView data={data} />;
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <ErrorBoundary fallback={<div>Error</div>}>
+        <BaseSelectionView />
+      </ErrorBoundary>
+    </HydrationBoundary>
+  );
 }

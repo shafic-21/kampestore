@@ -1,37 +1,63 @@
 "use client";
 
-import { SearchHeader } from "../components/search-header";
-import { ProductCard } from "../components/product-card";
-import { CategoryGrid } from "../components/category-grid";
 import { Button } from "@/components/ui/button";
 import { useQueryState } from "nuqs";
 import { useMemo } from "react";
-import type { ProductSelectionData } from "../../types";
+import { trpc } from "@/trpc/client";
 import { cn } from "@/lib/utils";
+import { SearchHeader } from "../components/editor/search-header";
+import { BaseSkuCard } from "../components/editor/base-sku-card";
 
 interface ProductSelectionViewProps {
-  data: ProductSelectionData;
   className?: string;
 }
 
-export function ProductSelectionView({ data, className }: ProductSelectionViewProps) {
+export function BaseSelectionView({
+  className,
+}: ProductSelectionViewProps) {
   const [query] = useQueryState("q", { defaultValue: "" });
   const [activeCategory] = useQueryState("category");
+  const [page] = useQueryState("page", { defaultValue: "1" });
+
+  // Fetch data using tRPC React Query hooks
+  const { data, isLoading, isError } = trpc.baseSkus.listBaseProducts.useQuery({
+    query,
+    category: activeCategory || undefined,
+    page: parseInt(page, 10),
+    limit: 20,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-muted-foreground">Loading products...</div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-muted-foreground">Failed to load products</div>
+      </div>
+    );
+  }
 
   const filteredProducts = useMemo(() => {
     let filtered = data.products;
 
     if (query) {
-      filtered = filtered.filter(product => 
-        product.name.toLowerCase().includes(query.toLowerCase()) ||
-        product.description.toLowerCase().includes(query.toLowerCase()) ||
-        product.code.toLowerCase().includes(query.toLowerCase())
+      filtered = filtered.filter(
+        (product) =>
+          product.name.toLowerCase().includes(query.toLowerCase()) ||
+          product.description.toLowerCase().includes(query.toLowerCase()) ||
+          product.code.toLowerCase().includes(query.toLowerCase()),
       );
     }
 
     if (activeCategory) {
-      filtered = filtered.filter(product => 
-        product.category.slug === activeCategory
+      filtered = filtered.filter(
+        (product) => product.category.slug === activeCategory,
       );
     }
 
@@ -43,7 +69,7 @@ export function ProductSelectionView({ data, className }: ProductSelectionViewPr
   return (
     <div className={cn("min-h-screen", className)}>
       <SearchHeader />
-      
+
       <main className="px-8 py-8 space-y-12">
         {showNewProducts && (
           <section className="space-y-6">
@@ -53,10 +79,10 @@ export function ProductSelectionView({ data, className }: ProductSelectionViewPr
                 View all
               </Button>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {data.products.slice(0, 4).map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <BaseSkuCard key={product.id} product={product} />
               ))}
             </div>
           </section>
@@ -66,20 +92,19 @@ export function ProductSelectionView({ data, className }: ProductSelectionViewPr
           <section className="space-y-6">
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-semibold">
-                {activeCategory 
+                {activeCategory
                   ? `${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)} Products`
-                  : `Search Results for "${query}"`
-                }
+                  : `Search Results for "${query}"`}
               </h1>
               <span className="text-muted-foreground">
                 {filteredProducts.length} products found
               </span>
             </div>
-            
+
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <BaseSkuCard key={product.id} product={product} />
                 ))}
               </div>
             ) : (
@@ -96,7 +121,7 @@ export function ProductSelectionView({ data, className }: ProductSelectionViewPr
         )}
 
         {/*{showNewProducts && (
-          <CategoryGrid 
+          <CategoryGrid
             categories={data.categories}
             totalProducts={data.totalProducts}
           />
