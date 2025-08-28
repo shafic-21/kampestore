@@ -2,11 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import { useQueryState } from "nuqs";
-import { useMemo } from "react";
 import { trpc } from "@/trpc/client";
 import { cn } from "@/lib/utils";
-import { SearchHeader } from "../components/editor/search-header";
-import { BaseSkuCard } from "../components/editor/base-sku-card";
+import { SearchHeader } from "../components/editor-launcher/search-header";
+import { BaseSkuCard } from "../components/editor-launcher/base-sku-card";
 
 interface ProductSelectionViewProps {
   className?: string;
@@ -49,10 +48,10 @@ export function BaseSelectionView({
   const showNewProducts = !activeCategory && !query;
 
   return (
-    <div className={cn("min-h-screen", className)}>
+    <div className={cn("", className)}>
       <SearchHeader />
 
-      <main className="py-8 space-y-12">
+      <main className="py-8 pt-20 space-y-12">
         {showNewProducts && (
           <section className="space-y-6">
             <div className="flex items-center justify-between">

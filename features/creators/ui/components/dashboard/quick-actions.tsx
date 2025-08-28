@@ -16,7 +16,7 @@ interface QuickActionCard {
 const quickActions: QuickActionCard[] = [
   {
     imageSrc: createProductsImage,
-    href: "/creator/editor-launcher",
+    href: "/editor/launcher",
     imageAlt: "Create new products",
   },
   {

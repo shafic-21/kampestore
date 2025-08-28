@@ -33,12 +33,15 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
+  sidebarMenuButtonVariants,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 const data = {
   user: {
@@ -133,24 +136,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5 h-fit"
-            >
-              <Link href="#" className="flex items-start gap-2 text-primary">
-                <Image
-                  height={40}
-                  width={100}
-                  src={
-                    isCollapsed
-                      ? "/logo/logo-mark-primary.svg"
-                      : "/logo/full-logo-black.svg"
-                  }
-                  alt="Kampe marketplace logo"
-                  className={`object-fit h-6 w-auto`}
-                />
-              </Link>
-            </SidebarMenuButton>
+            <Link href="#" className="flex items-start gap-2 text-primary">
+              <Image
+                height={40}
+                width={100}
+                src={
+                  isCollapsed
+                    ? "/logo/logo-mark-primary.svg"
+                    : "/logo/full-logo-black.svg"
+                }
+                alt="Kampe marketplace logo"
+                className={`object-fit h-6 w-auto`}
+              />
+            </Link>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
