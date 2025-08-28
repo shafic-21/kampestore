@@ -260,14 +260,39 @@ export const useCartStore = create<CartStore>((set) => ({
 #### **Schema Organization**
 ```typescript
 // server/db/schema/products.ts
-import { pgTable, text, bigint, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, bigint, timestamp, index } from 'drizzle-orm/pg-core';
 
 export const products = pgTable('products', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   priceUgx: bigint('price_ugx', { mode: 'bigint' }).notNull(), // ✅ ALWAYS bigint for money
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (table) => [
+  // ✅ CORRECT: New array syntax (not object)
+  index('products_name_idx').on(table.name),
+  index('products_created_at_idx').on(table.createdAt),
+]);
+```
+
+#### **Index Syntax (CRITICAL)**
+```typescript
+// ✅ CORRECT: Use array syntax
+export const users = pgTable("users", {
+  id: integer(),
+}, (table) => [
+  index('custom_name').on(table.id),
+  index('another_index').on(table.email),
+]);
+```
+
+**NEVER DO:**
+```typescript
+// ❌ DEPRECATED: Object syntax no longer supported
+export const users = pgTable("users", {
+  id: integer(),
+}, (table) => ({
+  idx: index('custom_name').on(table.id), // This will break!
+}));
 ```
 
 #### **Seeding (MUST use Drizzle)**
@@ -593,3 +618,39 @@ Remember: These rules are **NON-NEGOTIABLE**. Follow them exactly as written.
 - Never put  🤖 Generated with [Claude Code](https://claude.ai/code)
 
       Co-Authored-By: Claude <noreply@anthropic.com>") on any of my PRs and commits never!
+- the dev server is always active at 3000, never start it yoru self
+- U can just import { trpc } from "@/trpc/server"; and use it like:   const data = await trpc.products.getProductSelectionData(filters); no need to create a caller again
+- Server-Side Prefetching (RSC)
+typescript// server/page.tsx
+import { trpc, getQueryClient } from "@/trpc/server";
+
+export default async function Page({ searchParams }: PageProps) {
+  const queryClient = getQueryClient();
+  
+  // ✅ Prefetch data
+  await trpc.baseSkus.listBaseProducts.prefetch(filters);
+  await trpc.baseSkus.getProductCategories.prefetch();
+  
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <YourComponent />
+    </HydrationBoundary>
+  );
+}
+Client-Side Usage
+typescript// client/component.tsx
+import { trpc } from "@/trpc/client";
+
+export function YourComponent() {
+  // ✅ Direct from trpc export - no extra imports needed
+  const { data, isLoading } = trpc.baseSkus.listBaseProducts.useQuery(filters);
+  const { data: categories } = trpc.baseSkus.getProductCategories.useQuery();
+  
+  return <div>...</div>;
+}
+Key Points
+
+Server: Always await prefetch calls
+Client: Use trpc.*useQuery directly (no api import)
+Hydration: Prefetched data automatically available to client components
+Performance: No loading spinners for prefetched queries

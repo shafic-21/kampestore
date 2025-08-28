@@ -9,12 +9,12 @@ export const user = pgTable("user", {
   image: text("image"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
-}, (table) => ({
+}, (table) => [
   // Index for faster email lookups (even though it's unique, explicit index helps)
-  emailIdx: index("user_email_idx").on(table.email),
+  index("user_email_idx").on(table.email),
   // Index for phone lookups if we add phone-based auth later
-  phoneIdx: index("user_phone_idx").on(table.phone),
-}));
+  index("user_phone_idx").on(table.phone),
+]);
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -27,16 +27,16 @@ export const session = pgTable("session", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
-}, (table) => ({
+}, (table) => [
   // Critical: Index for user session lookups - most important for auth performance
-  userIdIdx: index("session_user_id_idx").on(table.userId),
+  index("session_user_id_idx").on(table.userId),
   // Index for token lookups (even though it's unique, explicit index helps)
-  tokenIdx: index("session_token_idx").on(table.token),
+  index("session_token_idx").on(table.token),
   // Index for cleanup operations to find expired sessions
-  expiresAtIdx: index("session_expires_at_idx").on(table.expiresAt),
+  index("session_expires_at_idx").on(table.expiresAt),
   // Composite index for user sessions cleanup
-  userExpiresIdx: index("session_user_expires_idx").on(table.userId, table.expiresAt),
-}));
+  index("session_user_expires_idx").on(table.userId, table.expiresAt),
+]);
 
 export const account = pgTable("account", {
   id: text("id").primaryKey(),
@@ -54,14 +54,14 @@ export const account = pgTable("account", {
   password: text("password"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
-}, (table) => ({
+}, (table) => [
   // Critical: Index for user account lookups
-  userIdIdx: index("account_user_id_idx").on(table.userId),
+  index("account_user_id_idx").on(table.userId),
   // Composite index for provider account lookups (OAuth flows)
-  providerAccountIdx: index("account_provider_account_idx").on(table.providerId, table.accountId),
+  index("account_provider_account_idx").on(table.providerId, table.accountId),
   // Index for token cleanup operations
-  accessTokenExpiresIdx: index("account_access_token_expires_idx").on(table.accessTokenExpiresAt),
-}));
+  index("account_access_token_expires_idx").on(table.accessTokenExpiresAt),
+]);
 
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),
@@ -70,11 +70,11 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at"),
   updatedAt: timestamp("updated_at"),
-}, (table) => ({
+}, (table) => [
   // Critical: Index for OTP verification lookups by email/phone
-  identifierIdx: index("verification_identifier_idx").on(table.identifier),
+  index("verification_identifier_idx").on(table.identifier),
   // Index for cleanup operations to find expired verifications
-  expiresAtIdx: index("verification_expires_at_idx").on(table.expiresAt),
+  index("verification_expires_at_idx").on(table.expiresAt),
   // Composite index for active verification lookups
-  identifierExpiresIdx: index("verification_identifier_expires_idx").on(table.identifier, table.expiresAt),
-}));
+  index("verification_identifier_expires_idx").on(table.identifier, table.expiresAt),
+]);
