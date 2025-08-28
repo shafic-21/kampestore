@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { ColorSwatchRow } from "./color-swatch";
+import { ColorSwatchRow } from "../editor/color-swatch";
 import { cn } from "@/lib/utils";
 import type { BaseProductCard } from "@/features/creators/types/editor.types";
 import { formatCurrency } from "@automattic/format-currency";
@@ -16,7 +16,7 @@ interface BaseSkuCardProps {
 export function BaseSkuCard({ product, className }: BaseSkuCardProps) {
   return (
     <div>
-      <Link href="/creator/editor-launcher" className="group block">
+      <Link href={`/editor/${product.id}`} className="group block">
         <Card className={cn("p-0 border-none overflow-hidden", className)}>
           <div className="aspect-square relative overflow-hidden">
             <Image

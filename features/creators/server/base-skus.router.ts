@@ -8,6 +8,8 @@ import {
   baseSkus,
   baseSkuAttributeRules,
   baseSkuMockups,
+  baseSkuViews,
+  baseSkuPrintAreas,
 } from "@/server/db/schema/bases";
 import {
   categories,
@@ -310,7 +312,7 @@ export const baseSkuRouter = createTRPCRouter({
             code: p.code,
             name: p.name,
             attributes: attrsByBase[p.id] ?? [],
-            cost: p.cost,
+            cost: p.cost.toString(),
             category: {
               id: p.categoryId,
               name: p.categoryName,
@@ -504,8 +506,9 @@ export const baseSkuRouter = createTRPCRouter({
 
           if (rule?.valueSetId) {
             console.log('[getBaseProductById] Fetching color values');
+            let all;
             try {
-              const all = await db
+              all = await db
                 .select({
                   id: attributeValues.id,
                   hexColor: attributeValues.hexColor,
@@ -583,7 +586,7 @@ export const baseSkuRouter = createTRPCRouter({
           code: product.code,
           name: product.name,
           attributes: ordered,
-          cost: product.cost,
+          cost: product.cost.toString(),
           category: {
             id: product.categoryId,
             name: product.categoryName,
@@ -610,6 +613,234 @@ export const baseSkuRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Failed to fetch product: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          cause: err,
+        });
+      }
+    }),
+
+  getEditorData: publicProcedure
+    .input(z.object({ baseSkuId: z.uuid() }))
+    .query(async ({ input }) => {
+      const startTime = Date.now();
+      console.log('[getEditorData] Starting with baseSkuId:', input.baseSkuId);
+      
+      try {
+        // Get base SKU details
+        console.log('[getEditorData] Fetching base SKU details');
+        let baseSku;
+        try {
+          [baseSku] = await db
+            .select({
+              id: baseSkus.id,
+              code: baseSkus.code,
+              name: baseSkus.name,
+              cost: baseSkus.cost,
+              categoryId: baseSkus.categoryId,
+              categoryName: categories.name,
+              categorySlug: categories.slug,
+            })
+            .from(baseSkus)
+            .innerJoin(categories, eq(baseSkus.categoryId, categories.id))
+            .where(and(eq(baseSkus.id, input.baseSkuId), eq(baseSkus.status, "active")))
+            .limit(1);
+          
+          console.log('[getEditorData] Base SKU found:', baseSku ? baseSku.name : 'NOT FOUND');
+        } catch (err) {
+          console.error('[getEditorData] Base SKU query failed:', err);
+          throw new Error(`Base SKU query failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+
+        if (!baseSku) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: new BaseSkuNotFoundError(input.baseSkuId).message,
+          });
+        }
+
+        // Get views with print areas
+        console.log('[getEditorData] Fetching views and print areas');
+        let viewsData;
+        try {
+          viewsData = await db
+            .select({
+              viewId: baseSkuViews.id,
+              viewCode: baseSkuViews.code,
+              viewDisplayName: baseSkuViews.displayName,
+              viewOrder: baseSkuViews.order,
+              sourceWidthPx: baseSkuViews.sourceWidthPx,
+              sourceHeightPx: baseSkuViews.sourceHeightPx,
+              printAreaId: baseSkuPrintAreas.id,
+              printAreaXPx: baseSkuPrintAreas.xPx,
+              printAreaYPx: baseSkuPrintAreas.yPx,
+              printAreaWidthPx: baseSkuPrintAreas.widthPx,
+              printAreaHeightPx: baseSkuPrintAreas.heightPx,
+              printAreaSourceWidthPx: baseSkuPrintAreas.sourceWidthPx,
+              printAreaSourceHeightPx: baseSkuPrintAreas.sourceHeightPx,
+              printAreaDpi: baseSkuPrintAreas.dpi,
+            })
+            .from(baseSkuViews)
+            .leftJoin(
+              baseSkuPrintAreas,
+              eq(baseSkuViews.id, baseSkuPrintAreas.viewId)
+            )
+            .where(eq(baseSkuViews.baseSkuId, input.baseSkuId))
+            .orderBy(baseSkuViews.order);
+          
+          console.log(`[getEditorData] Found ${viewsData.length} view entries`);
+        } catch (err) {
+          console.error('[getEditorData] Views query failed:', err);
+          throw new Error(`Views query failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+
+        // Get editor background mockups
+        console.log('[getEditorData] Fetching editor mockups');
+        let mockupsData;
+        try {
+          mockupsData = await db
+            .select({
+              viewId: baseSkuMockups.viewId,
+              r2Key: baseSkuMockups.r2Key,
+            })
+            .from(baseSkuMockups)
+            .where(
+              and(
+                eq(baseSkuMockups.baseSkuId, input.baseSkuId),
+                eq(baseSkuMockups.purpose, "editor_background")
+              )
+            );
+          
+          console.log(`[getEditorData] Found ${mockupsData.length} editor mockups`);
+        } catch (err) {
+          console.error('[getEditorData] Mockups query failed:', err);
+          throw new Error(`Mockups query failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+
+        // Get colors for this base SKU
+        console.log('[getEditorData] Fetching colors');
+        let colorAttr;
+        try {
+          [colorAttr] = await db
+            .select({ id: attributes.id })
+            .from(attributes)
+            .where(eq(attributes.code, "color"))
+            .limit(1);
+          console.log('[getEditorData] Color attribute found:', colorAttr?.id);
+        } catch (err) {
+          console.error('[getEditorData] Color attribute query failed:', err);
+          colorAttr = null;
+        }
+
+        let colors: Array<{ id: string; hexColor: string; displayName: string }> = [];
+        
+        if (colorAttr) {
+          try {
+            const colorRows = await db
+              .select({
+                colorId: attributeValues.id,
+                hexColor: attributeValues.hexColor,
+                displayName: attributeValues.displayName,
+                sortOrder: attributeValues.sortOrder,
+              })
+              .from(baseSkuAttributeRules)
+              .innerJoin(
+                attributeValueSets,
+                eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id)
+              )
+              .innerJoin(
+                attributeValueSetMembers,
+                eq(attributeValueSets.id, attributeValueSetMembers.valueSetId)
+              )
+              .innerJoin(
+                attributeValues,
+                eq(attributeValueSetMembers.valueId, attributeValues.id)
+              )
+              .where(
+                and(
+                  eq(baseSkuAttributeRules.baseSkuId, input.baseSkuId),
+                  eq(baseSkuAttributeRules.attributeId, colorAttr.id)
+                )
+              )
+              .orderBy(attributeValues.sortOrder);
+
+            colors = colorRows.map((c) => ({
+              id: c.colorId,
+              hexColor: c.hexColor ?? "#000000",
+              displayName: c.displayName,
+            }));
+            
+            console.log(`[getEditorData] Found ${colors.length} colors`);
+          } catch (err) {
+            console.error('[getEditorData] Colors query failed:', err);
+            colors = [];
+          }
+        }
+
+        // Transform views data
+        const viewsMap = new Map();
+        const mockupsMap = new Map(mockupsData.map(m => [m.viewId, m.r2Key]));
+
+        for (const row of viewsData) {
+          if (!viewsMap.has(row.viewId)) {
+            viewsMap.set(row.viewId, {
+              id: row.viewId,
+              code: row.viewCode,
+              displayName: row.viewDisplayName,
+              order: row.viewOrder,
+              sourceWidthPx: row.sourceWidthPx,
+              sourceHeightPx: row.sourceHeightPx,
+              mockupR2Key: mockupsMap.get(row.viewId) || null,
+              printArea: null,
+            });
+          }
+
+          if (row.printAreaId) {
+            viewsMap.get(row.viewId).printArea = {
+              id: row.printAreaId,
+              xPx: row.printAreaXPx,
+              yPx: row.printAreaYPx,
+              widthPx: row.printAreaWidthPx,
+              heightPx: row.printAreaHeightPx,
+              sourceWidthPx: row.printAreaSourceWidthPx,
+              sourceHeightPx: row.printAreaSourceHeightPx,
+              dpi: row.printAreaDpi,
+            };
+          }
+        }
+
+        const views = Array.from(viewsMap.values()).sort((a, b) => a.order - b.order);
+
+        const result = {
+          baseSku: {
+            id: baseSku.id,
+            code: baseSku.code,
+            name: baseSku.name,
+            cost: baseSku.cost.toString(),
+            category: {
+              id: baseSku.categoryId,
+              name: baseSku.categoryName,
+              slug: baseSku.categorySlug,
+            },
+          },
+          views,
+          colors,
+        };
+
+        console.log(`[getEditorData] Success! Returning editor data for ${baseSku.name} in ${Date.now() - startTime}ms`);
+        return result;
+      } catch (err) {
+        const elapsed = Date.now() - startTime;
+        console.error(`[getEditorData] FAILED after ${elapsed}ms:`, {
+          error: err,
+          errorMessage: err instanceof Error ? err.message : 'Unknown error',
+          errorStack: err instanceof Error ? err.stack : undefined,
+          baseSkuId: input.baseSkuId,
+        });
+        
+        if (err instanceof TRPCError) throw err;
+        
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to fetch editor data: ${err instanceof Error ? err.message : 'Unknown error'}`,
           cause: err,
         });
       }
