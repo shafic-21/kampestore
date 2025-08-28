@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ColorSwatchRow } from "./color-swatch";
 import { cn } from "@/lib/utils";
 import type { BaseProductCard } from "@/features/creators/types/editor.types";
+import { formatCurrency } from "@automattic/format-currency";
 
 interface BaseSkuCardProps {
   product: BaseProductCard;
@@ -36,12 +37,15 @@ export function BaseSkuCard({ product, className }: BaseSkuCardProps) {
             {product.name}
           </h3>
           <p className="text-base text-muted-foreground line-clamp-1">
-            {product.description}
+            {product.attributes.join(", ")}
           </p>
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm">Base cost {product.cost}</p>
+          <p className="text-sm flex justify-start gap-2">
+            Base cost
+            <span>{formatCurrency(parseInt(`${product.cost}`), "UGX")}</span>
+          </p>
           <ColorSwatchRow
             colors={product.colors}
             totalColors={product.totalColors}

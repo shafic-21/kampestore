@@ -25,6 +25,8 @@ export function BaseSelectionView({
     category: activeCategory || undefined,
     page: parseInt(page, 10),
     limit: 20,
+  }, {
+    staleTime: 30000, // 30 seconds to prevent duplicate requests
   });
 
   if (isLoading) {
@@ -43,34 +45,14 @@ export function BaseSelectionView({
     );
   }
 
-  const filteredProducts = useMemo(() => {
-    let filtered = data.products;
-
-    if (query) {
-      filtered = filtered.filter(
-        (product) =>
-          product.name.toLowerCase().includes(query.toLowerCase()) ||
-          product.description.toLowerCase().includes(query.toLowerCase()) ||
-          product.code.toLowerCase().includes(query.toLowerCase()),
-      );
-    }
-
-    if (activeCategory) {
-      filtered = filtered.filter(
-        (product) => product.category.slug === activeCategory,
-      );
-    }
-
-    return filtered;
-  }, [data.products, query, activeCategory]);
-
+  // No client-side filtering - server already filtered the data
   const showNewProducts = !activeCategory && !query;
 
   return (
     <div className={cn("min-h-screen", className)}>
       <SearchHeader />
 
-      <main className="px-8 py-8 space-y-12">
+      <main className="py-8 space-y-12">
         {showNewProducts && (
           <section className="space-y-6">
             <div className="flex items-center justify-between">
@@ -80,7 +62,7 @@ export function BaseSelectionView({
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
               {data.products.slice(0, 4).map((product) => (
                 <BaseSkuCard key={product.id} product={product} />
               ))}
@@ -97,13 +79,13 @@ export function BaseSelectionView({
                   : `Search Results for "${query}"`}
               </h1>
               <span className="text-muted-foreground">
-                {filteredProducts.length} products found
+                {data.products.length} products found
               </span>
             </div>
 
-            {filteredProducts.length > 0 ? (
+            {data.products.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredProducts.map((product) => (
+                {data.products.map((product) => (
                   <BaseSkuCard key={product.id} product={product} />
                 ))}
               </div>

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@automattic/format-currency':
+        specifier: ^2.1.0
+        version: 2.1.0
       '@aws-sdk/client-s3':
         specifier: ^3.873.0
         version: 3.873.0
@@ -258,6 +261,9 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@automattic/format-currency@2.1.0':
+    resolution: {integrity: sha512-gK26aBZOr9bdP0gIEKhRTzmS/+O5zfHLKX23V76njJEWw3lymWCmRVjbSeS9u0yy4g6bv3XU1UrXDbv6e3WH3g==}
 
   '@aws-crypto/crc32@5.2.0':
     resolution: {integrity: sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg==}
@@ -4418,6 +4424,10 @@ packages:
 snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
+
+  '@automattic/format-currency@2.1.0':
+    dependencies:
+      tslib: 2.8.1
 
   '@aws-crypto/crc32@5.2.0':
     dependencies:

@@ -4,7 +4,7 @@ export interface BaseProductCard {
   id: string;
   code: string;
   name: string;
-  description: string;
+  attributes: string[];
   cost: bigint;
   category: {
     id: string;

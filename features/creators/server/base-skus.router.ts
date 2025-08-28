@@ -1,93 +1,118 @@
-import { z } from "zod";
+// src/features/creators/server/routers/baseSkuRouter.ts
+import { z } from "zod/v4";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "@/trpc/init";
+import { createTRPCRouter, publicProcedure } from "@/trpc/init";
 import { productSearchFiltersSchema } from "../schema";
 import { db } from "@/server/db";
 import {
   baseSkus,
   baseSkuAttributeRules,
-  baseSkuMockups
+  baseSkuMockups,
 } from "@/server/db/schema/bases";
 import {
   categories,
   attributes,
   attributeValues,
   attributeValueSets,
-  attributeValueSetMembers
+  attributeValueSetMembers,
 } from "@/server/db/schema/catalog";
 import { getPublicUrl } from "@/lib/r2";
-import { eq, and, sql, inArray, desc } from "drizzle-orm";
 import {
-    BaseSkuNotFoundError,
-    CategoryNotFoundError,
-  type BaseProductCard,
-  type ProductCategory
+  eq,
+  and,
+  or,
+  inArray,
+  ilike,
+  sql,
+  type SQL,
+  count,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import {
+  BaseSkuNotFoundError,
+  CategoryNotFoundError,
+  type ProductCategory,
 } from "../types";
 
+// helpers
+const like = (q: string) => `%${q.trim()}%`;
+
 export const baseSkuRouter = createTRPCRouter({
-  // List base products with search and filtering
   listBaseProducts: publicProcedure
     .input(productSearchFiltersSchema)
     .query(async ({ input }) => {
       try {
-        // Validate category if provided
+        // Validate category slug if provided
         if (input.category) {
-          const categoryExists = await db
+          const [existing] = await db
             .select({ id: categories.id })
             .from(categories)
             .where(eq(categories.slug, input.category))
             .limit(1);
-          
-          if (!categoryExists[0]) {
-            throw new CategoryNotFoundError(input.category);
+
+          if (!existing) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: new CategoryNotFoundError(input.category).message,
+            });
           }
         }
 
-        // Build conditions
-        const conditions = [eq(baseSkus.status, "active")];
+        // Build WHERE conditions – allow undefined, then filter them out before `and(...)`
+        const conditions: (SQL | undefined)[] = [eq(baseSkus.status, "active")];
 
-        // Add search filter
-        if (input.query) {
-          conditions.push(
-            sql`(
-              LOWER(${baseSkus.name}) LIKE LOWER(${'%' + input.query + '%'}) OR
-              LOWER(${baseSkus.code}) LIKE LOWER(${'%' + input.query + '%'}) OR
-              LOWER(${categories.name}) LIKE LOWER(${'%' + input.query + '%'})
-            )`
+        if (typeof input.query === "string" && input.query.trim()) {
+          const pattern = like(input.query);
+          const search = or(
+            ilike(baseSkus.name, pattern),
+            ilike(baseSkus.code, pattern),
+            ilike(categories.name, pattern),
           );
+          conditions.push(search);
         }
 
-        // Add category filter
         if (input.category) {
           conditions.push(eq(categories.slug, input.category));
         }
 
-        // Get base SKUs with all filters applied
-        const filteredProducts = await db
-          .select({
-            id: baseSkus.id,
-            code: baseSkus.code,
-            name: baseSkus.name,
-            cost: baseSkus.cost,
-            categoryId: baseSkus.categoryId,
-            categoryName: categories.name,
-            categorySlug: categories.slug,
-          })
+        const whereClause = and(...(conditions.filter(Boolean) as SQL[]));
+
+        // Total count (numeric)
+        const [{ count: totalCount = 0 } = { count: 0 }] = await db
+          .select({ count: count() })
           .from(baseSkus)
           .innerJoin(categories, eq(baseSkus.categoryId, categories.id))
-          .where(and(...conditions));
+          .where(whereClause);
 
+        const totalPages =
+          input.limit > 0 ? Math.ceil(totalCount / input.limit) : 0;
 
+        if (totalCount === 0) {
+          // Return empty products plus top-level categories for filters
+          const cats = await db
+            .select({
+              id: categories.id,
+              name: categories.name,
+              slug: categories.slug,
+              productCount: sql<number>`(
+                SELECT COUNT(*)
+                FROM base_skus bs
+                WHERE bs.category_id = ${categories.id}
+                  AND bs.status = 'active'
+              )`,
+            })
+            .from(categories)
+            .where(eq(categories.level, 0));
 
-        // Apply pagination
-        const startIndex = (input.page - 1) * input.limit;
-        const paginatedProducts = filteredProducts.slice(startIndex, startIndex + input.limit);
-        const paginatedProductIds = paginatedProducts.map(p => p.id);
-
-        if (paginatedProductIds.length === 0) {
           return {
-            products: [],
-            categories: [],
+            products: [] as never[],
+            categories: cats.map((c) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+              imageUrl: "",
+              productCount: c.productCount,
+            })),
             totalProducts: 0,
             currentPage: input.page,
             totalPages: 0,
@@ -96,196 +121,9 @@ export const baseSkuRouter = createTRPCRouter({
           };
         }
 
-        // Get hero images for paginated products
-        const heroImages = await db
-          .select({
-            baseSkuId: baseSkuMockups.baseSkuId,
-            r2Key: baseSkuMockups.r2Key,
-          })
-          .from(baseSkuMockups)
-          .where(
-            and(
-              inArray(baseSkuMockups.baseSkuId, paginatedProductIds),
-              eq(baseSkuMockups.isHero, true)
-            )
-          );
-
-        // Get color information for paginated products with proper joins
-        const colorAttribute = await db
-          .select({ id: attributes.id })
-          .from(attributes)
-          .where(eq(attributes.code, "color"))
-          .limit(1);
-
-        let colorsByBaseSku: Record<string, { colors: Array<{ id: string; hexColor: string; displayName: string }>; totalColors: number }> = {};
-
-        if (colorAttribute[0]) {
-          // Get colors with proper joins through junction table
-          const productColorsData = await db
-            .select({
-              baseSkuId: baseSkuAttributeRules.baseSkuId,
-              valueSetId: baseSkuAttributeRules.valueSetId,
-              colorId: attributeValues.id,
-              hexColor: attributeValues.hexColor,
-              displayName: attributeValues.displayName,
-              sortOrder: attributeValues.sortOrder,
-            })
-            .from(baseSkuAttributeRules)
-            .innerJoin(attributeValueSets, eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id))
-            .innerJoin(attributeValueSetMembers, eq(attributeValueSets.id, attributeValueSetMembers.valueSetId))
-            .innerJoin(attributeValues, eq(attributeValueSetMembers.valueId, attributeValues.id))
-            .where(
-              and(
-                inArray(baseSkuAttributeRules.baseSkuId, paginatedProductIds),
-                eq(baseSkuAttributeRules.attributeId, colorAttribute[0].id)
-              )
-            )
-            .orderBy(attributeValues.sortOrder);
-
-          // Group colors by base SKU to prevent cross-contamination
-          const colorsByProduct = new Map<string, Array<{ id: string; hexColor: string; displayName: string; sortOrder: number }>>();
-          
-          for (const colorData of productColorsData) {
-            if (!colorsByProduct.has(colorData.baseSkuId)) {
-              colorsByProduct.set(colorData.baseSkuId, []);
-            }
-            colorsByProduct.get(colorData.baseSkuId)!.push({
-              id: colorData.colorId,
-              hexColor: colorData.hexColor || '#000000',
-              displayName: colorData.displayName,
-              sortOrder: colorData.sortOrder,
-            });
-          }
-
-          // Process each product's colors separately
-          for (const [baseSkuId, colors] of colorsByProduct) {
-            // Sort by sortOrder to ensure consistent ordering
-            const sortedColors = colors.sort((a, b) => a.sortOrder - b.sortOrder);
-            const top10Colors = sortedColors.slice(0, 10);
-            
-            colorsByBaseSku[baseSkuId] = {
-              colors: top10Colors.map(color => ({
-                id: color.id,
-                hexColor: color.hexColor,
-                displayName: color.displayName,
-              })),
-              totalColors: colors.length,
-            };
-          }
-        }
-
-        // Get categories for filter options
-        const categoriesData = await db
-          .select({
-            id: categories.id,
-            name: categories.name,
-            slug: categories.slug,
-            productCount: sql<number>`(
-              SELECT COUNT(*) 
-              FROM base_skus bs 
-              WHERE bs.category_id = ${categories.id} 
-              AND bs.status = 'active'
-            )`,
-          })
-          .from(categories)
-          .where(eq(categories.level, 0));
-
-        const heroImageMap = heroImages.reduce((acc, img) => {
-          acc[img.baseSkuId] = img.r2Key;
-          return acc;
-        }, {} as Record<string, string>);
-
-        const formattedProducts = paginatedProducts.map((product) => {
-          const colorInfo = colorsByBaseSku[product.id];
-          return {
-            id: product.id,
-            code: product.code,
-            name: product.name,
-            description: `High-quality ${product.categoryName.toLowerCase()} for custom printing`,
-            cost: product.cost,
-            category: {
-              id: product.categoryId,
-              name: product.categoryName,
-              slug: product.categorySlug,
-            },
-            colors: colorInfo?.colors || [],
-            totalColors: colorInfo?.totalColors || 0,
-            heroImageUrl: heroImageMap[product.id] ? getPublicUrl(heroImageMap[product.id]) : '',
-          };
-        });
-
-        const totalPages = Math.ceil(filteredProducts.length / input.limit);
-
-        return {
-          products: formattedProducts,
-          categories: categoriesData.map(cat => ({
-            id: cat.id,
-            name: cat.name,
-            slug: cat.slug,
-            imageUrl: '', // Ready for future category images
-            productCount: cat.productCount,
-          })),
-          totalProducts: filteredProducts.length,
-          currentPage: input.page,
-          totalPages,
-          hasNextPage: input.page < totalPages,
-          hasPreviousPage: input.page > 1,
-        };
-
-      } catch (error) {
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to search base products",
-          cause: error,
-        });
-      }
-    }),
-
-  // Get all product categories
-  getProductCategories: publicProcedure
-    .query(async () => {
-      try {
-        const categoriesData = await db
-          .select({
-            id: categories.id,
-            name: categories.name,
-            slug: categories.slug,
-            productCount: sql<number>`(
-              SELECT COUNT(*) 
-              FROM base_skus bs 
-              WHERE bs.category_id = ${categories.id} 
-              AND bs.status = 'active'
-            )`,
-          })
-          .from(categories)
-          .where(eq(categories.level, 0));
-
-        return categoriesData.map((cat): ProductCategory => ({
-          id: cat.id,
-          name: cat.name,
-          slug: cat.slug,
-          imageUrl: '', // Ready for future category images
-          productCount: cat.productCount,
-        }));
-
-      } catch (error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to fetch product categories",
-          cause: error,
-        });
-      }
-    }),
-
-  // Get base product by ID
-  getBaseProductById: publicProcedure
-    .input(z.object({ id: z.uuid() }))
-    .query(async ({ input }) => {
-      try {
-        const product = await db
+        // Page slice
+        const offset = (input.page - 1) * input.limit;
+        const pageRows = await db
           .select({
             id: baseSkus.id,
             code: baseSkus.code,
@@ -297,99 +135,482 @@ export const baseSkuRouter = createTRPCRouter({
           })
           .from(baseSkus)
           .innerJoin(categories, eq(baseSkus.categoryId, categories.id))
-          .where(
-            and(
-              eq(baseSkus.id, input.id),
-              eq(baseSkus.status, "active")
-            )
-          )
-          .limit(1);
+          .where(whereClause)
+          .limit(input.limit)
+          .offset(offset);
 
-        if (!product[0]) {
-          throw new BaseSkuNotFoundError(input.id);
+        const pageIds = pageRows.map((p) => p.id);
+        if (pageIds.length === 0) {
+          return {
+            products: [] as never[],
+            categories: [] as never[],
+            totalProducts: totalCount,
+            currentPage: input.page,
+            totalPages,
+            hasNextPage: input.page < totalPages,
+            hasPreviousPage: input.page > 1,
+          };
         }
 
-        // Get hero image
-        const heroImage = await db
-          .select({ r2Key: baseSkuMockups.r2Key })
+        // Hero images
+        const heroRows = await db
+          .select({
+            baseSkuId: baseSkuMockups.baseSkuId,
+            r2Key: baseSkuMockups.r2Key,
+          })
           .from(baseSkuMockups)
           .where(
             and(
-              eq(baseSkuMockups.baseSkuId, input.id),
-              eq(baseSkuMockups.isHero, true)
-            )
-          )
-          .limit(1);
+              inArray(baseSkuMockups.baseSkuId, pageIds),
+              eq(baseSkuMockups.purpose, "display_card"),
+            ),
+          );
 
-        // Get colors (top 10 + count)
-        const colorAttribute = await db
-          .select({ id: attributes.id })
-          .from(attributes)
-          .where(eq(attributes.code, "color"))
-          .limit(1);
+        const heroById = heroRows.reduce<Record<string, string>>((acc, r) => {
+          acc[r.baseSkuId] = r.r2Key;
+          return acc;
+        }, {});
 
-        let colors: Array<{ id: string; hexColor: string; displayName: string }> = [];
-        let totalColors = 0;
+        // Colors
+        console.log('[listBaseProducts] Fetching color attribute');
+        let colorAttr;
+        try {
+          [colorAttr] = await db
+            .select({ id: attributes.id })
+            .from(attributes)
+            .where(eq(attributes.code, "color"))
+            .limit(1);
+          console.log('[listBaseProducts] Color attribute found:', colorAttr?.id);
+        } catch (err) {
+          console.error('[listBaseProducts] Color attribute query failed:', err);
+          colorAttr = null;
+        }
 
-        if (colorAttribute[0]) {
-          const colorRule = await db
-            .select({ valueSetId: baseSkuAttributeRules.valueSetId })
+        const colorsByBase: Record<
+          string,
+          { colors: Array<{ id: string; hexColor: string; displayName: string }>; totalColors: number }
+        > = {};
+
+        if (colorAttr) {
+          const colorRows = await db
+            .select({
+              baseSkuId: baseSkuAttributeRules.baseSkuId,
+              colorId: attributeValues.id,
+              hexColor: attributeValues.hexColor,
+              displayName: attributeValues.displayName,
+              sortOrder: attributeValues.sortOrder,
+            })
             .from(baseSkuAttributeRules)
+            .innerJoin(
+              attributeValueSets,
+              eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id),
+            )
+            .innerJoin(
+              attributeValueSetMembers,
+              eq(attributeValueSets.id, attributeValueSetMembers.valueSetId),
+            )
+            .innerJoin(
+              attributeValues,
+              eq(attributeValueSetMembers.valueId, attributeValues.id),
+            )
             .where(
               and(
-                eq(baseSkuAttributeRules.baseSkuId, input.id),
-                eq(baseSkuAttributeRules.attributeId, colorAttribute[0].id)
-              )
+                inArray(baseSkuAttributeRules.baseSkuId, pageIds),
+                eq(baseSkuAttributeRules.attributeId, colorAttr.id),
+              ),
+            )
+            .orderBy(attributeValues.sortOrder);
+
+          const grouped = new Map<
+            string,
+            Array<{ id: string; hexColor: string; displayName: string; sortOrder: number }>
+          >();
+
+          for (const r of colorRows) {
+            if (!grouped.has(r.baseSkuId)) grouped.set(r.baseSkuId, []);
+            grouped.get(r.baseSkuId)!.push({
+              id: r.colorId,
+              hexColor: r.hexColor ?? "#000000",
+              displayName: r.displayName,
+              sortOrder: r.sortOrder ?? 0,
+            });
+          }
+
+          for (const [baseSkuId, colors] of grouped) {
+            const sorted = colors.sort((a, b) => a.sortOrder - b.sortOrder);
+            const top10 = sorted.slice(0, 10);
+            colorsByBase[baseSkuId] = {
+              colors: top10.map((c) => ({
+                id: c.id,
+                hexColor: c.hexColor,
+                displayName: c.displayName,
+              })),
+              totalColors: colors.length,
+            };
+          }
+        }
+
+        // Fit + material (table alias via `alias(...)`)
+        const jValues = alias(attributeValues, "j_values");
+        const attrRows = await db
+          .select({
+            baseSkuId: baseSkuAttributeRules.baseSkuId,
+            attributeCode: attributes.code,
+            displayName: sql<string>`coalesce(${attributeValues.displayName}, ${jValues.displayName})`,
+          })
+          .from(baseSkuAttributeRules)
+          .innerJoin(attributes, eq(baseSkuAttributeRules.attributeId, attributes.id))
+          .leftJoin(attributeValues, eq(baseSkuAttributeRules.valueId, attributeValues.id))
+          .leftJoin(attributeValueSets, eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id))
+          .leftJoin(
+            attributeValueSetMembers,
+            eq(attributeValueSets.id, attributeValueSetMembers.valueSetId),
+          )
+          .leftJoin(jValues, eq(attributeValueSetMembers.valueId, jValues.id))
+          .where(
+            and(
+              inArray(baseSkuAttributeRules.baseSkuId, pageIds),
+              eq(baseSkuAttributeRules.isVariantDefining, false),
+              inArray(attributes.code, ["fit", "material"]),
+            ),
+          )
+          .orderBy(attributes.code);
+
+        const attrsByBase: Record<string, string[]> = {};
+        for (const r of attrRows) {
+          if (!r.displayName) continue;
+          if (!attrsByBase[r.baseSkuId]) attrsByBase[r.baseSkuId] = [];
+          const list = attrsByBase[r.baseSkuId];
+          if (!list.includes(r.displayName)) {
+            if (r.attributeCode === "fit") list.unshift(r.displayName);
+            else if (r.attributeCode === "material") list.push(r.displayName);
+          }
+        }
+
+        // Categories for sidebar
+        const cats = await db
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            productCount: sql<number>`(
+              SELECT COUNT(*)
+              FROM base_skus bs
+              WHERE bs.category_id = ${categories.id}
+                AND bs.status = 'active'
+            )`,
+          })
+          .from(categories)
+          .where(eq(categories.level, 0));
+
+        const products = pageRows.map((p) => {
+          const colorInfo = colorsByBase[p.id];
+          return {
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            attributes: attrsByBase[p.id] ?? [],
+            cost: p.cost,
+            category: {
+              id: p.categoryId,
+              name: p.categoryName,
+              slug: p.categorySlug,
+            },
+            colors: colorInfo?.colors ?? [],
+            totalColors: colorInfo?.totalColors ?? 0,
+            heroImageUrl: heroById[p.id] ? getPublicUrl(heroById[p.id]) : "",
+          };
+        });
+
+        return {
+          products,
+          categories: cats.map((c) => ({
+            id: c.id,
+            name: c.name,
+            slug: c.slug,
+            imageUrl: "",
+            productCount: c.productCount,
+          })),
+          totalProducts: totalCount,
+          currentPage: input.page,
+          totalPages,
+          hasNextPage: input.page < totalPages,
+          hasPreviousPage: input.page > 1,
+        };
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        console.error(err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to search base products",
+          cause: err,
+        });
+      
+      }
+    }),
+
+  getProductCategories: publicProcedure.query(async () => {
+    const startTime = Date.now();
+    console.log('[getProductCategories] Starting');
+    
+    try {
+      console.log('[getProductCategories] Fetching categories with product counts');
+      let rows;
+      try {
+        rows = await db
+          .select({
+            id: categories.id,
+            name: categories.name,
+            slug: categories.slug,
+            productCount: sql<number>`(
+              SELECT COUNT(*)
+              FROM base_skus bs
+              WHERE bs.category_id = ${categories.id}
+                AND bs.status = 'active'
+            )`,
+          })
+          .from(categories)
+          .where(eq(categories.level, 0));
+        console.log(`[getProductCategories] Found ${rows.length} categories`);
+      } catch (err) {
+        console.error('[getProductCategories] Query failed:', err);
+        throw new Error(`Categories query failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+
+      const out: ProductCategory[] = rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        imageUrl: "",
+        productCount: r.productCount,
+      }));
+
+      console.log(`[getProductCategories] Success! Returning ${out.length} categories in ${Date.now() - startTime}ms`);
+      return out;
+    } catch (err) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[getProductCategories] FAILED after ${elapsed}ms:`, {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorStack: err instanceof Error ? err.stack : undefined,
+      });
+      
+      if (err instanceof TRPCError) throw err;
+      
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: `Failed to fetch categories: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        cause: err,
+      });
+    }
+  }),
+
+  getBaseProductById: publicProcedure
+    .input(z.object({ id: z.uuid() }))
+    .query(async ({ input }) => {
+      const startTime = Date.now();
+      console.log('[getBaseProductById] Starting with ID:', input.id);
+      
+      try {
+        console.log('[getBaseProductById] Fetching product details');
+        let product;
+        try {
+          [product] = await db
+            .select({
+              id: baseSkus.id,
+              code: baseSkus.code,
+              name: baseSkus.name,
+              cost: baseSkus.cost,
+              categoryId: baseSkus.categoryId,
+              categoryName: categories.name,
+              categorySlug: categories.slug,
+            })
+            .from(baseSkus)
+            .innerJoin(categories, eq(baseSkus.categoryId, categories.id))
+            .where(and(eq(baseSkus.id, input.id), eq(baseSkus.status, "active")))
+            .limit(1);
+          
+          console.log('[getBaseProductById] Product found:', product ? product.name : 'NOT FOUND');
+        } catch (err) {
+          console.error('[getBaseProductById] Product query failed:', err);
+          throw new Error(`Product query failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+
+        if (!product) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: new BaseSkuNotFoundError(input.id).message,
+          });
+        }
+
+        console.log('[getBaseProductById] Fetching hero image');
+        let hero;
+        try {
+          [hero] = await db
+            .select({ r2Key: baseSkuMockups.r2Key })
+            .from(baseSkuMockups)
+            .where(
+              and(
+                eq(baseSkuMockups.baseSkuId, input.id),
+                eq(baseSkuMockups.purpose, "display_card"),
+              ),
             )
             .limit(1);
+          console.log('[getBaseProductById] Hero image found:', !!hero);
+        } catch (err) {
+          console.error('[getBaseProductById] Hero image query failed:', err);
+          hero = null; // Non-fatal
+        }
 
-          if (colorRule[0]) {
-            const allColorData = await db
-              .select({
-                id: attributeValues.id,
-                hexColor: attributeValues.hexColor,
-                displayName: attributeValues.displayName,
-                sortOrder: attributeValues.sortOrder,
-              })
-              .from(attributeValueSetMembers)
-              .innerJoin(attributeValues, eq(attributeValueSetMembers.valueId, attributeValues.id))
-              .where(eq(attributeValueSetMembers.valueSetId, colorRule[0].valueSetId))
-              .orderBy(attributeValues.sortOrder);
+        // Colors
+        console.log('[getBaseProductById] Fetching color attribute');
+        let colorAttr;
+        try {
+          [colorAttr] = await db
+            .select({ id: attributes.id })
+            .from(attributes)
+            .where(eq(attributes.code, "color"))
+            .limit(1);
+          console.log('[getBaseProductById] Color attribute found:', colorAttr?.id);
+        } catch (err) {
+          console.error('[getBaseProductById] Color attribute query failed:', err);
+          colorAttr = null;
+        }
 
-            totalColors = allColorData.length;
-            colors = allColorData.slice(0, 10).map(color => ({
-              id: color.id,
-              hexColor: color.hexColor || '#000000',
-              displayName: color.displayName,
+        let colors:
+          | Array<{ id: string; hexColor: string; displayName: string }>
+          | undefined;
+        let totalColors = 0;
+
+        if (colorAttr) {
+          console.log('[getBaseProductById] Fetching color rule');
+          let rule;
+          try {
+            [rule] = await db
+              .select({ valueSetId: baseSkuAttributeRules.valueSetId })
+              .from(baseSkuAttributeRules)
+              .where(
+                and(
+                  eq(baseSkuAttributeRules.baseSkuId, input.id),
+                  eq(baseSkuAttributeRules.attributeId, colorAttr.id),
+                ),
+              )
+              .limit(1);
+            console.log('[getBaseProductById] Color rule found:', rule?.valueSetId);
+          } catch (err) {
+            console.error('[getBaseProductById] Color rule query failed:', err);
+            rule = null;
+          }
+
+          if (rule?.valueSetId) {
+            console.log('[getBaseProductById] Fetching color values');
+            try {
+              const all = await db
+                .select({
+                  id: attributeValues.id,
+                  hexColor: attributeValues.hexColor,
+                  displayName: attributeValues.displayName,
+                  sortOrder: attributeValues.sortOrder,
+                })
+                .from(attributeValueSetMembers)
+                .innerJoin(
+                  attributeValues,
+                  eq(attributeValueSetMembers.valueId, attributeValues.id),
+                )
+                .where(eq(attributeValueSetMembers.valueSetId, rule.valueSetId))
+                .orderBy(attributeValues.sortOrder);
+              console.log(`[getBaseProductById] Found ${all.length} colors`);
+            } catch (err) {
+              console.error('[getBaseProductById] Color values query failed:', err);
+              throw new Error(`Color values query failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            }
+
+            totalColors = all.length;
+            colors = all.slice(0, 10).map((c) => ({
+              id: c.id,
+              hexColor: c.hexColor ?? "#000000",
+              displayName: c.displayName,
             }));
           }
         }
 
-        const baseProduct = product[0];
-        return {
-          id: baseProduct.id,
-          code: baseProduct.code,
-          name: baseProduct.name,
-          description: `High-quality ${baseProduct.categoryName.toLowerCase()} for custom printing`,
-          cost: baseProduct.cost,
-          category: {
-            id: baseProduct.categoryId,
-            name: baseProduct.categoryName,
-            slug: baseProduct.categorySlug,
-          },
-          colors,
-          totalColors,
-          heroImageUrl: heroImage[0] ? getPublicUrl(heroImage[0].r2Key) : '',
-        };
-
-      } catch (error) {
-        if (error instanceof TRPCError) {
-          throw error;
+        // Fit & material (alias)
+        console.log('[getBaseProductById] Fetching fit/material attributes');
+        const jValues = alias(attributeValues, "j_values_product");
+        let rows;
+        try {
+          rows = await db
+            .select({
+              attributeCode: attributes.code,
+              displayName: sql<string>`coalesce(${attributeValues.displayName}, ${jValues.displayName})`,
+            })
+            .from(baseSkuAttributeRules)
+            .innerJoin(attributes, eq(baseSkuAttributeRules.attributeId, attributes.id))
+            .leftJoin(attributeValues, eq(baseSkuAttributeRules.valueId, attributeValues.id))
+            .leftJoin(attributeValueSets, eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id))
+            .leftJoin(
+              attributeValueSetMembers,
+              eq(attributeValueSets.id, attributeValueSetMembers.valueSetId),
+            )
+            .leftJoin(jValues, eq(attributeValueSetMembers.valueId, jValues.id))
+            .where(
+              and(
+                eq(baseSkuAttributeRules.baseSkuId, input.id),
+                eq(baseSkuAttributeRules.isVariantDefining, false),
+                inArray(attributes.code, ["fit", "material"]),
+              ),
+            )
+            .orderBy(attributes.code);
+          console.log(`[getBaseProductById] Found ${rows.length} attribute entries`);
+        } catch (err) {
+          console.error('[getBaseProductById] Attributes query failed:', err);
+          throw new Error(`Attributes query failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
+
+        const dedup = new Set<string>();
+        const ordered: string[] = [];
+        for (const r of rows) {
+          if (!r.displayName) continue;
+          const key = `${r.attributeCode}:${r.displayName}`;
+          if (dedup.has(key)) continue;
+          dedup.add(key);
+          if (r.attributeCode === "fit") ordered.unshift(r.displayName);
+          else if (r.attributeCode === "material") ordered.push(r.displayName);
+        }
+
+        const result = {
+          id: product.id,
+          code: product.code,
+          name: product.name,
+          attributes: ordered,
+          cost: product.cost,
+          category: {
+            id: product.categoryId,
+            name: product.categoryName,
+            slug: product.categorySlug,
+          },
+          colors: colors ?? [],
+          totalColors,
+          heroImageUrl: hero ? getPublicUrl(hero.r2Key) : "",
+        };
+        
+        console.log(`[getBaseProductById] Success! Returning product ${product.name} in ${Date.now() - startTime}ms`);
+        return result;
+      } catch (err) {
+        const elapsed = Date.now() - startTime;
+        console.error(`[getBaseProductById] FAILED after ${elapsed}ms:`, {
+          error: err,
+          errorMessage: err instanceof Error ? err.message : 'Unknown error',
+          errorStack: err instanceof Error ? err.stack : undefined,
+          productId: input.id,
+        });
+        
+        if (err instanceof TRPCError) throw err;
+        
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to fetch base product",
-          cause: error,
+          message: `Failed to fetch product: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          cause: err,
         });
       }
     }),

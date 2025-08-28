@@ -20,15 +20,13 @@ export default function SellerCenterLayout({
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="max-w-7xl mx-auto flex flex-1 flex-col gap-2 px-8 ">
-           
-              {/* <SectionCards /> */}
-              {children}
-              {/* <div className="px-4 lg:px-6">
+          <div className="w-screen  max-w-7xl mx-auto flex flex-1 flex-col gap-2 px-8 ">
+            {/* <SectionCards /> */}
+            {children}
+            {/* <div className="px-4 lg:px-6">
                 <ChartAreaInteractive />
               </div> */}
-              {/* <DataTable data={data} /> */}
-        
+            {/* <DataTable data={data} /> */}
           </div>
         </div>
       </SidebarInset>
