@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
-import EditorView from "@/features/creators/ui/views/editor-view";
+import { EditorView } from "@/features/creators/ui/views/editor-view";
 import { headers } from "next/headers";
+import { trpc, getQueryClient } from "@/trpc/server";
+import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 
 interface PageProps {
   params: Promise<{ baseSkuId: string }>;
@@ -20,5 +22,14 @@ export default async function EditorPage({ params }: PageProps) {
     redirect("/auth/sign-in");
   }
 
-  return <EditorView baseSkuId={baseSkuId} />;
+  const queryClient = getQueryClient();
+  
+  // Prefetch editor data on the server
+  await trpc.baseSkus.getEditorData.prefetch({ baseSkuId });
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <EditorView baseSkuId={baseSkuId} />
+    </HydrationBoundary>
+  );
 }
