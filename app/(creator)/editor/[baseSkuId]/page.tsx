@@ -23,13 +23,13 @@ export default async function EditorPage({ params }: PageProps) {
   }
 
   const queryClient = getQueryClient();
-  
+
   // Prefetch editor data on the server
   await trpc.baseSkus.getEditorData.prefetch({ baseSkuId });
 
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      <EditorView baseSkuId={baseSkuId} />
-    </HydrationBoundary>
+    // <HydrationBoundary state={dehydrate(queryClient)}>
+    <EditorView baseSkuId={baseSkuId} />
+    // </HydrationBoundary>
   );
 }

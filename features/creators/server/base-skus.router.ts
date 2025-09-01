@@ -788,7 +788,7 @@ export const baseSkuRouter = createTRPCRouter({
               order: row.viewOrder,
               sourceWidthPx: row.sourceWidthPx,
               sourceHeightPx: row.sourceHeightPx,
-              mockupR2Key: mockupsMap.get(row.viewId) || null,
+              mockupImageUrl: mockupsMap.get(row.viewId) ? getPublicUrl(mockupsMap.get(row.viewId)!) : null,
               printArea: null,
             });
           }

@@ -90,7 +90,7 @@ export interface EditorView {
   order: number;
   sourceWidthPx: number;
   sourceHeightPx: number;
-  mockupR2Key: string | null;
+  mockupImageUrl: string | null;
   printArea: EditorPrintArea | null;
 }
 
@@ -98,12 +98,6 @@ export interface EditorBaseSku {
   id: string;
   code: string;
   name: string;
-  cost: string;
-  category: {
-    id: string;
-    name: string;
-    slug: string;
-  };
 }
 
 export interface EditorData {

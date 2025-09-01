@@ -1,6 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import React, { useState, useRef, useEffect } from "react";
+import useImage from "use-image";
+import Konva from "konva";
 import {
   Stage,
   Layer,
@@ -10,14 +14,10 @@ import {
   Text,
   Group,
 } from "react-konva";
-import useImage from "use-image";
-import Konva from "konva";
 import type { EditorData } from "@/features/creators/types/editor.types";
 import { getPublicUrl } from "@/lib/r2";
-
-interface ProductEditorProps {
-  editorData: EditorData;
-}
+import { EditorToolbar } from "./editor-toolbar";
+import { useQueryState } from "nuqs";
 
 interface DesignAttrs {
   x: number;
@@ -29,26 +29,91 @@ interface DesignAttrs {
   scaleY: number;
 }
 
-const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
+const ProductEditor = () => {
+  const [editorView] = useQueryState("view");
+  const [editorMode] = useQueryState("mode");
+
+  // Static test data - hardcoded for testing
+  const editorData = {
+    baseSku: {
+      id: "990e8400-e29b-41d4-a716-446655440001",
+      code: "classic-crew-neck-tee",
+      name: "Classic Crew Neck T-Shirt",
+    },
+    views: [
+      {
+        id: "991e8400-e29b-41d4-a716-446655440001",
+        code: "front",
+        displayName: "Front",
+        order: 1,
+        sourceWidthPx: 900,
+        sourceHeightPx: 900,
+        mockupImageUrl: `https://files.xapisoft.co/apparel/product_template_classic-crew-neck-tee_front.png`,
+        printArea: {
+          id: "pa-front",
+          xPx: 282,
+          yPx: 227,
+          widthPx: 336,
+          heightPx: 447,
+          sourceWidthPx: 900,
+          sourceHeightPx: 900,
+          dpi: 300,
+        },
+      },
+      {
+        id: "991e8400-e29b-41d4-a716-446655440002",
+        code: "back",
+        displayName: "Back",
+        order: 2,
+        sourceWidthPx: 900,
+        sourceHeightPx: 900,
+        mockupImageUrl:
+          "https://files.xapisoft.co/apparel/product_template_classic-crew-neck-tee_back.png",
+
+        printArea: {
+          id: "pa-back",
+          xPx: 277,
+          yPx: 160,
+          widthPx: 349,
+          heightPx: 465,
+          sourceWidthPx: 900,
+          sourceHeightPx: 900,
+          dpi: 300,
+        },
+      },
+    ],
+    colors: [
+      { id: "white", hexColor: "#FFFFFF", displayName: "White" },
+      { id: "black", hexColor: "#000000", displayName: "Black" },
+      { id: "navy", hexColor: "#1E3A8A", displayName: "Navy" },
+    ],
+  };
+
+  console.log(editorData);
+
   // Get available views and determine if we have front/back
-  const frontView = editorData.views.find(v => v.code === "front");
-  const backView = editorData.views.find(v => v.code === "back");
-  
+  const frontView = editorData.views.find((v) => v.code === "front");
+  const backView = editorData.views.find((v) => v.code === "back");
+
   // State management
   const [currentViewId, setCurrentViewId] = useState<string>(
-    frontView?.id || editorData.views[0]?.id || ""
+    frontView?.id || editorData.views[0]?.id || "",
   );
-  const [mode, setMode] = useState<"design" | "preview">("design");
 
   // Store designs per view
-  const [designsByView, setDesignsByView] = useState<Record<string, {
-    image: HTMLImageElement | null;
-    attrs: DesignAttrs;
-    isSelected: boolean;
-    printQuality: "Good" | "Fair" | "Poor";
-  }>>(() => {
+  const [designsByView, setDesignsByView] = useState<
+    Record<
+      string,
+      {
+        image: HTMLImageElement | null;
+        attrs: DesignAttrs;
+        isSelected: boolean;
+        printQuality: "Good" | "Fair" | "Poor";
+      }
+    >
+  >(() => {
     const initialDesigns: Record<string, any> = {};
-    editorData.views.forEach(view => {
+    editorData.views.forEach((view) => {
       initialDesigns[view.id] = {
         image: null,
         attrs: {
@@ -78,26 +143,33 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
   const layerRef = useRef<Konva.Layer>(null);
 
   // Get current view data
-  const currentView = editorData.views.find(v => v.id === currentViewId);
-  const mockupUrl = currentView?.mockupR2Key ? getPublicUrl(currentView.mockupR2Key) : "";
-  
-  // Load mockup image using use-image hook
-  const [mockupImage] = useImage(mockupUrl);
+  const currentView = editorData.views.find((v) => v.id === currentViewId);
+  const mockupUrl = currentView?.mockupImageUrl || null;
+
+  // Load mockup image using use-image hook - only if URL exists
+  const [mockupImage] = useImage(mockupUrl as string);
 
   // Get current design based on selected view
   const currentDesign = designsByView[currentViewId] || {
     image: null,
-    attrs: { x: 0, y: 0, width: 200, height: 200, rotation: 0, scaleX: 1, scaleY: 1 },
+    attrs: {
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 200,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+    },
     isSelected: false,
     printQuality: "Good",
   };
-  
+
   const setCurrentDesign = (updater: any) => {
     setDesignsByView((prev: typeof designsByView) => ({
       ...prev,
-      [currentViewId]: typeof updater === 'function' 
-        ? updater(prev[currentViewId])
-        : updater
+      [currentViewId]:
+        typeof updater === "function" ? updater(prev[currentViewId]) : updater,
     }));
   };
 
@@ -105,12 +177,14 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
   useEffect(() => {
     console.log("Editor state:", {
       mockupImage: !!mockupImage,
+      mockupUrl,
       currentViewId,
       currentView: currentView?.code,
       currentDesignImage: !!currentDesign.image,
       printArea: currentView?.printArea,
+      mockupImageUrl: currentView?.mockupImageUrl,
     });
-  }, [mockupImage, currentViewId, currentView, currentDesign.image]);
+  }, [mockupImage, mockupUrl, currentViewId, currentView, currentDesign.image]);
 
   // Get current print area from database
   const currentPrintArea = currentView?.printArea;
@@ -295,11 +369,14 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
 
   // Handle stage click for deselecting
   const handleStageClick = (e: any) => {
-    if (mode === "preview") return;
+    if (editorMode === "preview") return;
 
     const clickedOnEmpty = e.target === e.target.getStage();
     if (clickedOnEmpty) {
-      setCurrentDesign((prev: typeof currentDesign) => ({ ...prev, isSelected: false }));
+      setCurrentDesign((prev: typeof currentDesign) => ({
+        ...prev,
+        isSelected: false,
+      }));
     }
   };
 
@@ -384,7 +461,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
   const dimensions = getActualDimensions();
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full mx-auto bg-[#F6F6F9] h-screen">
       {/* Quality Warning Banner */}
       {currentDesign.image && currentDesign.printQuality === "Poor" && (
         <div className="mb-4 bg-red-600 text-white px-4 py-2 rounded-lg text-center font-medium">
@@ -439,18 +516,9 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
       {/* Canvas Container */}
       <div
         ref={containerRef}
-        className="mx-auto bg-gray-100 rounded-lg shadow-lg overflow-hidden relative"
-        style={{ width: "100%", maxWidth: "600px", minHeight: "600px" }}
+        className="mx-auto rounded-lg shadow-lg overflow-hidden relative border-red-500 border-2"
+        style={{ width: "100%" }}
       >
-        {/* Loading indicator */}
-        {!mockupImage && currentView?.mockupR2Key && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-gray-600 text-sm">Loading product image...</p>
-            </div>
-          </div>
-        )}
         <Stage
           ref={stageRef}
           width={stageSize.width}
@@ -461,12 +529,53 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
           <Layer ref={layerRef}>
             {/* Base Product Image or Fallback */}
             {mockupImage ? (
-              <Image
-                image={mockupImage}
-                width={stageSize.width}
-                height={stageSize.height}
-                listening={false}
-              />
+              <>
+                {/* Background */}
+                <Rect
+                  width={stageSize.width}
+                  height={stageSize.height}
+                  fill="#FFC4C4"
+                  stroke="#d1d5db"
+                  strokeWidth={2}
+                  listening={false}
+                />
+
+                {/* User's Design - In Preview Mode: Between background and mockup */}
+                {editorMode === "preview" && currentDesign.image && (
+                  <Group
+                    clipFunc={(ctx) => {
+                      ctx.rect(
+                        printAreaBounds.x,
+                        printAreaBounds.y,
+                        printAreaBounds.width,
+                        printAreaBounds.height,
+                      );
+                    }}
+                  >
+                    <Image
+                      image={currentDesign.image}
+                      x={currentDesign.attrs.x}
+                      y={currentDesign.attrs.y}
+                      width={currentDesign.attrs.width}
+                      height={currentDesign.attrs.height}
+                      rotation={currentDesign.attrs.rotation}
+                      scaleX={currentDesign.attrs.scaleX}
+                      scaleY={currentDesign.attrs.scaleY}
+                      globalCompositeOperation="multiply"
+                      globalAlpha={0.5}
+                      listening={false}
+                    />
+                  </Group>
+                )}
+
+                {/* Mockup Image */}
+                <Image
+                  image={mockupImage}
+                  width={stageSize.width}
+                  height={stageSize.height}
+                  listening={false}
+                />
+              </>
             ) : (
               /* Fallback background when image is loading or not available */
               <Rect
@@ -479,15 +588,15 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
               />
             )}
 
-            {/* Design Image - Always show with print area clipping */}
-            {currentDesign.image && (
+            {/* Design Image - Only show in design mode (for editing) */}
+            {editorMode === "design" && currentDesign.image && (
               <Group
                 clipFunc={(ctx) => {
                   ctx.rect(
                     printAreaBounds.x,
                     printAreaBounds.y,
                     printAreaBounds.width,
-                    printAreaBounds.height
+                    printAreaBounds.height,
                   );
                 }}
               >
@@ -501,18 +610,16 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
                   rotation={currentDesign.attrs.rotation}
                   scaleX={currentDesign.attrs.scaleX}
                   scaleY={currentDesign.attrs.scaleY}
-                  draggable={mode === "design"}
+                  draggable={true}
                   onDragEnd={handleDragEnd}
                   onTransformEnd={handleTransformEnd}
                   onClick={() =>
-                    mode === "design" &&
                     setCurrentDesign((prev: typeof currentDesign) => ({
                       ...prev,
                       isSelected: true,
                     }))
                   }
                   onTap={() =>
-                    mode === "design" &&
                     setCurrentDesign((prev: typeof currentDesign) => ({
                       ...prev,
                       isSelected: true,
@@ -523,7 +630,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
             )}
 
             {/* Print Area - Only show in design mode */}
-            {mode === "design" && currentPrintArea && (
+            {editorMode === "design" && currentPrintArea && (
               <>
                 <Rect
                   x={printAreaBounds.x}
@@ -551,7 +658,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
             )}
 
             {/* Transformer - Only show in design mode when selected */}
-            {mode === "design" &&
+            {editorMode === "design" &&
               currentDesign.image &&
               currentDesign.isSelected && (
                 <Transformer
@@ -574,8 +681,10 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
           </Layer>
         </Stage>
 
+        <EditorToolbar />
+
         {/* Dimensions and Quality Overlay - Show when design is selected */}
-        {mode === "design" &&
+        {editorMode === "design" &&
           currentDesign.image &&
           currentDesign.isSelected && (
             <div className="absolute bottom-4 left-4 bg-gray-900 text-white px-3 py-2 rounded-lg text-sm">
@@ -590,8 +699,8 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
                       currentDesign.printQuality === "Good"
                         ? "text-green-400"
                         : currentDesign.printQuality === "Fair"
-                        ? "text-yellow-400"
-                        : "text-red-400"
+                          ? "text-yellow-400"
+                          : "text-red-400"
                     }`}
                   >
                     {currentDesign.printQuality}
@@ -607,7 +716,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
           )}
 
         {/* Action Buttons Overlay */}
-        {mode === "design" &&
+        {editorMode === "design" &&
           currentDesign.image &&
           currentDesign.isSelected && (
             <div className="absolute top-4 right-4 flex gap-2">
@@ -652,67 +761,8 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ editorData }) => {
             </div>
           )}
       </div>
-
-      {/* Preview/Design Toggle */}
-      <div className="flex justify-center mt-6 gap-2">
-        <button
-          onClick={() => {
-            setMode("preview");
-            setCurrentDesign((prev: typeof currentDesign) => ({ ...prev, isSelected: false }));
-          }}
-          className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
-            mode === "preview"
-              ? "bg-gray-800 text-white"
-              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          <svg
-            className="w-5 h-5 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-            />
-          </svg>
-          Preview
-        </button>
-        <button
-          onClick={() => setMode("design")}
-          className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
-            mode === "design"
-              ? "bg-gray-800 text-white"
-              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-          }`}
-        >
-          <svg
-            className="w-5 h-5 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-            />
-          </svg>
-          Design
-        </button>
-      </div>
     </div>
   );
 };
 
-export { ProductEditor };
+export default ProductEditor;

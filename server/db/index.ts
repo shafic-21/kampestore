@@ -8,13 +8,13 @@ import * as bases from "./schema/bases";
 import * as products from "./schema/products";
 
 const sql = neon(process.env.DATABASE_URL || "");
-export const db = drizzle(sql, { 
-  schema: { 
-    ...auth, 
-    ...waitlist, 
-    ...creators, 
-    ...catalog, 
-    ...bases,  
-    ...products 
-  } 
+export const db = drizzle(sql, {
+  schema: {
+    ...auth,
+    ...waitlist,
+    ...creators,
+    ...catalog,
+    ...bases,
+    ...products,
+  },
 });
