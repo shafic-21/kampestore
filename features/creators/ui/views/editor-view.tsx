@@ -53,7 +53,7 @@ export const EditorView = ({ baseSkuId, initialData }: EditorViewProps) => {
   // }
 
   return (
-    <div>
+    <div className="h-full">
       <ProductEditor />
     </div>
   );

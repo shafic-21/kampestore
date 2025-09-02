@@ -119,21 +119,21 @@ export function EditorToolbar({
     views.find((v) => v.code === editorView)?.displayName || "Front";
 
   return (
-    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
-      <div className="bg-sidebar px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-4">
+    <div className=" z-10">
+      <div className="bg-background border px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-4">
         {/* Upload/Change Design Button - Only visible in design mode */}
-        {editorMode === "design" && (
-          <Button
-            variant="ghost"
-            onClick={handleDesignUpload}
-            className="flex items-center gap-2"
-          >
-            <ImageIcon className="size-4" />
-            <span>
-              {currentDesign?.image ? "Change Design" : "Upload Design"}
-            </span>
-          </Button>
-        )}
+
+        <Button
+          variant="ghost"
+          onClick={handleDesignUpload}
+          className="flex items-center gap-2"
+          disabled={editorMode == "preview"}
+        >
+          <ImageIcon className="size-4" />
+          <span>
+            {currentDesign?.image ? "Change Design" : "Upload Design"}
+          </span>
+        </Button>
 
         {/* View Selector Dropdown */}
         <Popover>

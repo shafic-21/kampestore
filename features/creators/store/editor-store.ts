@@ -111,11 +111,10 @@ const getCurrentViewFromState = (state: {
 };
 
 /**
- * FIXED: Calculate print area bounds correctly for centered mockup at original size.
- *
- * The mockup is centered at original size (900x900px) in the viewport canvas.
- * Print area coordinates (x_px, y_px) are relative to the source image (900x900px).
- * We need to offset them by the mockup's centered position in the viewport.
+ * Calculate print area bounds for the new scaling approach.
+ * 
+ * Stage size now matches mockup size exactly (scaled if needed).
+ * Print area coordinates are scaled directly from source dimensions.
  */
 const getPrintAreaBoundsFromState = (state: {
   editorData: EditorData | null;
@@ -129,22 +128,15 @@ const getPrintAreaBoundsFromState = (state: {
     return { x: 0, y: 0, width: 0, height: 0 };
   }
 
-  const s = Math.min(
-    1,
-    state.stageSize.width / currentView.sourceWidthPx,
-    state.stageSize.height / currentView.sourceHeightPx,
-  );
-
-  const mockupW = currentView.sourceWidthPx * s;
-  const mockupH = currentView.sourceHeightPx * s;
-  const mockupX = (state.stageSize.width - mockupW) / 2;
-  const mockupY = (state.stageSize.height - mockupH) / 2;
+  // Calculate scale based on stage size vs source size
+  const sourceSize = Math.min(currentView.sourceWidthPx, currentView.sourceHeightPx);
+  const scale = sourceSize > 0 ? state.stageSize.width / sourceSize : 1;
 
   return {
-    x: mockupX + printArea.x_px * s,
-    y: mockupY + printArea.y_px * s,
-    width: printArea.width_px * s,
-    height: printArea.height_px * s,
+    x: printArea.x_px * scale,
+    y: printArea.y_px * scale,
+    width: printArea.width_px * scale,
+    height: printArea.height_px * scale,
   };
 };
 

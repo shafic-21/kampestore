@@ -26,6 +26,8 @@ import {
 import { EditorToolbar } from "./editor-toolbar";
 import type { EditorData } from "@/features/creators/types/canvas.types";
 import { useShallow } from "zustand/react/shallow";
+import { EditorColorSwitcher } from "./editor-color-switcher";
+import { Button } from "@/components/ui/button";
 
 /**
  * ProductEditor Component - Full Viewport with Centered Mockup
@@ -80,39 +82,31 @@ const ProductEditor = () => {
     };
   }, [designsByView, currentViewId, imageStore]);
 
-  // ===== MOCKUP POSITIONING - CENTERED AT ORIGINAL SIZE =====
-  // FIXED: Keep mockup at original size and center it properly
-  // 1) DB source-space is truth
+  // ===== MOCKUP POSITIONING - FILLS STAGE =====
+  // Since stage size matches mockup size, mockup fills entire stage
   const sourceW = currentView?.sourceWidthPx ?? 0;
   const sourceH = currentView?.sourceHeightPx ?? 0;
   const rel = (abs: number, origin: number) => Math.round(abs - origin);
 
-  // 2) Uniform scale that NEVER upscales, only shrinks if needed
+  // Stage size is calculated to match mockup size (scaled if needed)
   const fitScale = useMemo(() => {
-    if (!sourceW || !sourceH) return 1;
-    const sW = stageSize.width / sourceW;
-    const sH = stageSize.height / sourceH;
-    return Math.min(1, sW, sH); // default = DB size on desktop; downscale on small viewports
+    if (!sourceW || !sourceH || !stageSize.width) return 1;
+    return stageSize.width / Math.min(sourceW, sourceH);
   }, [stageSize, sourceW, sourceH]);
 
-  // 3) Final mockup rect (centered). No stretch because we keep uniform scale.
+  // Mockup fills entire stage (no centering needed)
   const mockupDimensions = useMemo(() => {
-    const width = Math.round(sourceW * fitScale);
-    const height = Math.round(sourceH * fitScale);
-    const x = Math.round((stageSize.width - width) / 2);
-    const y = Math.round((stageSize.height - height) / 2);
-
     return {
-      x,
-      y,
-      width,
-      height,
-      scale: fitScale, // helpful for print-area math
+      x: 0,
+      y: 0,
+      width: stageSize.width,
+      height: stageSize.height,
+      scale: fitScale,
     };
-  }, [sourceW, sourceH, fitScale, stageSize]);
+  }, [fitScale, stageSize]);
 
-  // ===== PRINT AREA BOUNDS - CORRECTLY OFFSET FROM CENTERED MOCKUP =====
-  // FIXED: Print area coordinates are relative to source image, offset by mockup position
+  // ===== PRINT AREA BOUNDS - SCALED FROM SOURCE =====
+  // Print area coordinates are scaled directly from source dimensions
   const printAreaBounds = useMemo(() => {
     const pa = currentView?.printArea;
     if (!pa) return { x: 0, y: 0, width: 0, height: 0 };
@@ -126,18 +120,18 @@ const ProductEditor = () => {
     };
   }, [currentView, mockupDimensions]);
 
-  // ===== OPTIMIZED CLIPPING CONFIG =====
-  // FIXED: Use 'clip' prop for rectangular areas (more performant than 'clipFunc')
+  // ===== DESIGN POSITIONING - RELATIVE TO STAGE =====
+  // Since mockup is at (0,0), design positions are relative to stage origin
   const designRel = useMemo(() => {
     const a = currentDesign.attrs;
     return {
-      x: rel(a.x, mockupDimensions.x),
-      y: rel(a.y, mockupDimensions.y),
+      x: a.x,
+      y: a.y,
       width: a.width,
       height: a.height,
       rotation: a.rotation,
     };
-  }, [currentDesign.attrs, mockupDimensions]);
+  }, [currentDesign.attrs]);
 
   // ===== STORE ACTIONS =====
   const initializeEditor = useEditorStore((state) => state.initializeEditor);
@@ -229,21 +223,26 @@ const ProductEditor = () => {
     }
   }
 
-  // ===== FULL VIEWPORT CANVAS SIZING =====
+  // ===== RESPONSIVE STAGE SIZING =====
   useEffect(() => {
-    const updateCanvasSize = () => {
-      // Full viewport dimensions with minimum margins for small screens
-      const minMargin = 40; // Minimum 20px on each side
-      const width = Math.max(1200, window.innerWidth - minMargin); // Minimum 1200px width
-      const height = Math.max(800, window.innerHeight - minMargin); // Minimum 800px height
+    const container = containerRef.current;
+    if (!container) return;
 
-      setStageSize({ width, height });
-    };
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
 
-    updateCanvasSize();
-    window.addEventListener("resize", updateCanvasSize);
-    return () => window.removeEventListener("resize", updateCanvasSize);
-  }, [setStageSize]);
+      const { width, height } = entry.contentRect;
+      const maxSize = Math.min(sourceW, sourceH);
+      const scale = Math.min(1, width / maxSize, height / maxSize);
+      const stageSize = Math.floor(maxSize * scale);
+
+      setStageSize({ width: stageSize, height: stageSize });
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [sourceW, sourceH, setStageSize]);
 
   // ===== TRANSFORMER SYNC =====
   useEffect(() => {
@@ -328,11 +327,11 @@ const ProductEditor = () => {
 
   const handleDragEnd = useCallback(
     (e: Konva.KonvaEventObject<DragEvent>) => {
-      const nx = e.target.x() + mockupDimensions.x;
-      const ny = e.target.y() + mockupDimensions.y;
+      const nx = e.target.x();
+      const ny = e.target.y();
       updateDesignAttributes({ x: nx, y: ny });
     },
-    [updateDesignAttributes, mockupDimensions],
+    [updateDesignAttributes],
   );
 
   const handleTransformEnd = useCallback(
@@ -347,13 +346,9 @@ const ProductEditor = () => {
       node.scaleX(1);
       node.scaleY(1);
 
-      // convert local (group) coords back to absolute stage coords
-      const absX = node.x() + mockupDimensions.x;
-      const absY = node.y() + mockupDimensions.y;
-
       updateDesignAttributes({
-        x: absX,
-        y: absY,
+        x: node.x(),
+        y: node.y(),
         width: Math.max(10, node.width() * scale),
         height: Math.max(10, node.height() * scale),
         rotation: node.rotation(),
@@ -361,7 +356,7 @@ const ProductEditor = () => {
         scaleY: 1,
       });
     },
-    [updateDesignAttributes, mockupDimensions],
+    [updateDesignAttributes],
   );
 
   const handleDesignClick = React.useCallback(() => {
@@ -376,171 +371,164 @@ const ProductEditor = () => {
       </div>
     );
   }
-
   // ===== MAIN RENDER WITH FIXED LAYER ORDERING =====
   return (
-    <div className="w-full h-screen bg-[#F6F6F9] relative overflow-hidden">
+    <div className="w-full h-full bg-[#F6F6F9] relative overflow-hidden flex flex-col gap-4 px-4 py-4">
+      <div className="w-full flex justify-between">
+        <EditorToolbar
+          handleDesignUpload={() => fileInputRef.current?.click()}
+          fileInputRef={fileInputRef}
+          currentDesign={currentDesign}
+        />
+        <Button size="lg">Publish</Button>
+      </div>
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         onChange={handleFileUpload}
-        className="hidden"
+        className="sr-only hidden"
       />
 
-      {/* Full Viewport Canvas */}
-      <div
-        ref={containerRef}
-        className="w-full h-full"
-        style={{
-          width: stageSize.width,
-          height: stageSize.height,
-        }}
-      >
-        <Stage
-          width={stageSize.width}
-          height={stageSize.height}
-          onMouseDown={handleStageClick}
-          onTouchStart={handleStageClick}
+      {/* Responsive Canvas Container */}
+      <div className="w-full flex flex-nowrap gap-8 items-start flex-1 min-h-0">
+        <div
+          ref={containerRef}
+          className="flex-1 grid place-items-center h-full"
         >
-          <Layer>
-            {/* Parent group at snapped origin; children use (0,0) space */}
-            <Group x={mockupDimensions.x} y={mockupDimensions.y}>
-              {editorMode === "preview" ? (
-                // PREVIEW: top→bottom = mockup overlay → design → mockup-sized background
-                <>
-                  <Rect
-                    x={0}
-                    y={0}
-                    width={mockupDimensions.width}
-                    height={mockupDimensions.height}
-                    fill="#000000"
-                    listening={false}
-                  />
-                  {/* mockup overlay (top) */}
-                  {currentDesign.image && (
-                    <Group clip={printAreaBounds}>
+          <Stage
+            width={stageSize.width}
+            height={stageSize.height}
+            onMouseDown={handleStageClick}
+            onTouchStart={handleStageClick}
+          >
+            <Layer>
+              {/* Parent group at snapped origin; children use (0,0) space */}
+              <Group x={0} y={0}>
+                {editorMode === "preview" ? (
+                  // PREVIEW: top→bottom = mockup overlay → design → mockup-sized background
+                  <>
+                    <Rect
+                      x={0}
+                      y={0}
+                      width={stageSize.width}
+                      height={stageSize.height}
+                      fill="#000000"
+                      listening={false}
+                    />
+                    {/* mockup overlay (top) */}
+                    {currentDesign.image && (
+                      <Group clip={printAreaBounds}>
+                        <Image
+                          ref={designRef}
+                          image={currentDesign.image}
+                          x={designRel.x}
+                          y={designRel.y}
+                          width={designRel.width}
+                          height={designRel.height}
+                          rotation={designRel.rotation}
+                          listening={false}
+                        />
+                      </Group>
+                    )}
+                    {mockupImage && (
                       <Image
-                        ref={designRef}
-                        image={currentDesign.image}
-                        x={designRel.x}
-                        y={designRel.y}
-                        width={designRel.width}
-                        height={designRel.height}
-                        rotation={designRel.rotation}
+                        image={mockupImage}
+                        x={0}
+                        y={0}
+                        width={stageSize.width}
+                        height={stageSize.height}
                         listening={false}
                       />
-                    </Group>
-                  )}
-                  {mockupImage && (
-                    <Image
-                      image={mockupImage}
-                      x={0}
-                      y={0}
-                      width={mockupDimensions.width}
-                      height={mockupDimensions.height}
-                      listening={false}
-                    />
-                  )}
-
-                  {/* design (middle, clipped to print area) */}
-
-                  {/* mockup-sized background (bottom) */}
-                </>
-              ) : (
-                // DESIGN: top→bottom = design → mockup overlay → mockup-sized background
-                <>
-                  {/* design (top, clipped & draggable) */}
-                  <Rect
-                    x={0}
-                    y={0}
-                    width={mockupDimensions.width}
-                    height={mockupDimensions.height}
-                    fill="#000000"
-                    listening={false}
-                  />
-                  {/* mockup overlay (middle) — transparent PNG with shadows */}
-                  {mockupImage && (
-                    <Image
-                      image={mockupImage}
-                      x={0}
-                      y={0}
-                      width={mockupDimensions.width}
-                      height={mockupDimensions.height}
-                      listening={false}
-                    />
-                  )}
-                  {editorMode === "design" && (
+                    )}
+                  </>
+                ) : (
+                  // DESIGN: top→bottom = design → mockup overlay → mockup-sized background
+                  <>
+                    {/* design (top, clipped & draggable) */}
                     <Rect
-                      x={printAreaBounds.x}
-                      y={printAreaBounds.y}
-                      width={printAreaBounds.width}
-                      height={printAreaBounds.height}
-                      fill="rgba(219,234,254,0.2)"
-                      stroke="rgba(147,51,234,0.4)"
-                      strokeWidth={1}
-                      dash={[5, 5]}
+                      x={0}
+                      y={0}
+                      width={stageSize.width}
+                      height={stageSize.height}
+                      fill="#000000"
                       listening={false}
                     />
-                  )}
-                  {currentDesign.image && (
-                    <Group clip={printAreaBounds}>
+                    {/* mockup overlay (middle) — transparent PNG with shadows */}
+                    {mockupImage && (
                       <Image
-                        ref={designRef}
-                        image={currentDesign.image}
-                        x={designRel.x}
-                        y={designRel.y}
-                        width={designRel.width}
-                        height={designRel.height}
-                        rotation={designRel.rotation}
-                        draggable
-                        onDragEnd={handleDragEnd}
-                        onTransformEnd={handleTransformEnd}
-                        onClick={handleDesignClick}
-                        onTap={handleDesignClick}
+                        image={mockupImage}
+                        x={0}
+                        y={0}
+                        width={stageSize.width}
+                        height={stageSize.height}
+                        listening={false}
                       />
-                    </Group>
-                  )}
+                    )}
+                    {editorMode === "design" && (
+                      <Rect
+                        x={printAreaBounds.x}
+                        y={printAreaBounds.y}
+                        width={printAreaBounds.width}
+                        height={printAreaBounds.height}
+                        fill="rgba(219,234,254,0.2)"
+                        stroke="rgba(147,51,234,0.4)"
+                        strokeWidth={1}
+                        dash={[5, 5]}
+                        listening={false}
+                      />
+                    )}
+                    {currentDesign.image && (
+                      <Group clip={printAreaBounds}>
+                        <Image
+                          ref={designRef}
+                          image={currentDesign.image}
+                          x={designRel.x}
+                          y={designRel.y}
+                          width={designRel.width}
+                          height={designRel.height}
+                          rotation={designRel.rotation}
+                          draggable
+                          onDragEnd={handleDragEnd}
+                          onTransformEnd={handleTransformEnd}
+                          onClick={handleDesignClick}
+                          onTap={handleDesignClick}
+                        />
+                      </Group>
+                    )}
 
-                  {/* mockup-sized background (bottom) */}
-                </>
-              )}
+                    {/* mockup-sized background (bottom) */}
+                  </>
+                )}
 
-              {/* Print area guide (design mode only, relative to group) */}
-            </Group>
+                {/* Print area guide (design mode only, relative to group) */}
+              </Group>
 
-            {/* Stage background outside the group if you need it (soft gray) */}
-            {/* <Rect width={stageSize.width} height={stageSize.height} fill="#F6F6F9" listening={false}/> */}
+              {/* Transformer on top in design mode */}
+              {editorMode === "design" &&
+                currentDesign.image &&
+                currentDesign.isSelected && (
+                  <Transformer
+                    ref={transformerRef}
+                    anchorSize={10}
+                    anchorCornerRadius={2}
+                    anchorFill="#3B82F6"
+                    anchorStroke="#1E40AF"
+                    anchorStrokeWidth={2}
+                    borderStroke="#3B82F6"
+                    borderStrokeWidth={2}
+                    borderDash={[4, 4]}
+                    rotateEnabled
+                    keepRatio
+                    enabledAnchors={["bottom-right"]}
+                  />
+                )}
+            </Layer>
+          </Stage>
+        </div>
 
-            {/* Transformer on top in design mode */}
-            {editorMode === "design" &&
-              currentDesign.image &&
-              currentDesign.isSelected && (
-                <Transformer
-                  ref={transformerRef}
-                  anchorSize={10}
-                  anchorCornerRadius={2}
-                  anchorFill="#3B82F6"
-                  anchorStroke="#1E40AF"
-                  anchorStrokeWidth={2}
-                  borderStroke="#3B82F6"
-                  borderStrokeWidth={2}
-                  borderDash={[4, 4]}
-                  rotateEnabled
-                  keepRatio
-                  enabledAnchors={["bottom-right"]}
-                />
-              )}
-          </Layer>
-        </Stage>
-
-        {/* Toolbar - Always on top */}
-        <EditorToolbar
-          handleDesignUpload={() => fileInputRef.current?.click()}
-          fileInputRef={fileInputRef}
-          currentDesign={currentDesign}
-        />
+        <EditorColorSwitcher />
       </div>
     </div>
   );
