@@ -53,7 +53,7 @@ const ProductEditor = () => {
   );
 
   // ===== ZUSTAND STORE - GRANULAR SELECTION =====
-  const { editorData, currentViewId, designsByView, stageSize, imageStore } =
+  const { editorData, currentViewId, designsByView, stageSize, imageStore, currentProductColorId } =
     useEditorStore(
       useShallow((state) => ({
         editorData: state.editorData,
@@ -61,6 +61,7 @@ const ProductEditor = () => {
         designsByView: state.designsByView,
         stageSize: state.stageSize,
         imageStore: state.imageStore,
+        currentProductColorId: state.currentProductColorId,
       })),
     );
 
@@ -81,6 +82,14 @@ const ProductEditor = () => {
         : null,
     };
   }, [designsByView, currentViewId, imageStore]);
+
+  // Get the current product color object for background rendering
+  const currentProductColor = useMemo(() => {
+    if (!editorData?.colors || !currentProductColorId) {
+      return { hexColor: "#F5F5DC" }; // Default fallback color (beige)
+    }
+    return editorData.colors.find((color) => color.id === currentProductColorId) || { hexColor: "#F5F5DC" };
+  }, [editorData?.colors, currentProductColorId]);
 
   // ===== MOCKUP POSITIONING - FILLS STAGE =====
   // Since stage size matches mockup size, mockup fills entire stage
@@ -134,7 +143,6 @@ const ProductEditor = () => {
   }, [currentDesign.attrs]);
 
   // ===== STORE ACTIONS =====
-  const initializeEditor = useEditorStore((state) => state.initializeEditor);
   const setCurrentView = useEditorStore((state) => state.setCurrentView);
   const setStageSize = useEditorStore((state) => state.setStageSize);
   const uploadDesign = useEditorStore((state) => state.uploadDesign);
@@ -150,70 +158,6 @@ const ProductEditor = () => {
   const designRef = useRef<Konva.Image>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // ===== TEST DATA =====
-  const testEditorData: EditorData = {
-    baseSku: {
-      id: "990e8400-e29b-41d4-a716-446655440001",
-      code: "classic-crew-neck-tee",
-      name: "Classic Crew Neck T-Shirt",
-    },
-    views: [
-      {
-        id: "991e8400-e29b-41d4-a716-446655440001",
-        code: "front",
-        displayName: "Front",
-        order: 1,
-        sourceWidthPx: 900, // Original mockup size
-        sourceHeightPx: 900, // Original mockup size
-        mockupImageUrl: `https://files.xapisoft.co/apparel/product_template_classic-crew-neck-tee_front.png`,
-        printArea: {
-          id: "pa-front-001",
-          base_sku_id: "990e8400-e29b-41d4-a716-446655440001",
-          view_id: "991e8400-e29b-41d4-a716-446655440001",
-          x_px: 282, // Relative to 900x900 source image
-          y_px: 227,
-          width_px: 336,
-          height_px: 447,
-          source_width_px: 900,
-          source_height_px: 900,
-          dpi: 300,
-        },
-      },
-      {
-        id: "991e8400-e29b-41d4-a716-446655440002",
-        code: "back",
-        displayName: "Back",
-        order: 2,
-        sourceWidthPx: 900,
-        sourceHeightPx: 900,
-        mockupImageUrl:
-          "https://files.xapisoft.co/apparel/product_template_classic-crew-neck-tee_back.png",
-        printArea: {
-          id: "pa-back-001",
-          base_sku_id: "990e8400-e29b-41d4-a716-446655440001",
-          view_id: "991e8400-e29b-41d4-a716-446655440002",
-          x_px: 277,
-          y_px: 160,
-          width_px: 349,
-          height_px: 465,
-          source_width_px: 900,
-          source_height_px: 900,
-          dpi: 300,
-        },
-      },
-    ],
-    colors: [
-      { id: "color-white-001", hexColor: "#FFFFFF", displayName: "White" },
-      { id: "color-black-001", hexColor: "#000000", displayName: "Black" },
-      { id: "color-navy-001", hexColor: "#1E3A8A", displayName: "Navy" },
-    ],
-  };
-
-  // ===== INITIALIZATION =====
-  if (!editorData) {
-    initializeEditor(testEditorData);
-  }
 
   // ===== SYNC URL STATE WITH STORE =====
   if (editorData) {
@@ -414,7 +358,7 @@ const ProductEditor = () => {
                       y={0}
                       width={stageSize.width}
                       height={stageSize.height}
-                      fill="#000000"
+                      fill={currentProductColor.hexColor}
                       listening={false}
                     />
                     {/* mockup overlay (top) */}
@@ -452,7 +396,7 @@ const ProductEditor = () => {
                       y={0}
                       width={stageSize.width}
                       height={stageSize.height}
-                      fill="#000000"
+                      fill={currentProductColor.hexColor}
                       listening={false}
                     />
                     {/* mockup overlay (middle) — transparent PNG with shadows */}

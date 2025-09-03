@@ -1,7 +1,7 @@
 // /features/creators/store/editor-store.ts
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { EditorView, EditorData, PrintArea } from "../types/canvas.types";
+import type { EditorView, EditorData } from "../types/canvas.types";
 
 /**
  * Design attributes for positioning and transforming designs on the canvas.
@@ -55,6 +55,14 @@ interface EditorStore {
   designsByView: Record<string, ViewDesignState>;
   stageSize: StageSize;
 
+  // ===== COLOR MANAGEMENT =====
+  // Colors selected by user in the sidebar (up to 5 colors)
+  selectedColors: string[];
+  // Featured color ID - used for storefront display
+  featuredColorId: string | null;
+  // Current product color being displayed in the canvas
+  currentProductColorId: string | null;
+
   // ===== IMAGE STORE (Outside of immer) =====
   // Store actual HTMLImageElement objects separately
   imageStore: Map<string, HTMLImageElement>;
@@ -69,6 +77,12 @@ interface EditorStore {
   deleteCurrentDesign: () => void;
   calculatePrintQuality: () => void;
   resetEditor: () => void;
+  
+  // ===== COLOR MANAGEMENT ACTIONS =====
+  setSelectedColors: (colorIds: string[]) => void;
+  setFeaturedColor: (colorId: string) => void;
+  setCurrentProductColor: (colorId: string) => void;
+  toggleColorSelection: (colorId: string) => void;
 }
 
 /**
@@ -112,7 +126,7 @@ const getCurrentViewFromState = (state: {
 
 /**
  * Calculate print area bounds for the new scaling approach.
- * 
+ *
  * Stage size now matches mockup size exactly (scaled if needed).
  * Print area coordinates are scaled directly from source dimensions.
  */
@@ -129,7 +143,10 @@ const getPrintAreaBoundsFromState = (state: {
   }
 
   // Calculate scale based on stage size vs source size
-  const sourceSize = Math.min(currentView.sourceWidthPx, currentView.sourceHeightPx);
+  const sourceSize = Math.min(
+    currentView.sourceWidthPx,
+    currentView.sourceHeightPx,
+  );
   const scale = sourceSize > 0 ? state.stageSize.width / sourceSize : 1;
 
   return {
@@ -155,6 +172,13 @@ export const useEditorStore = create<EditorStore>()(
       currentViewId: "",
       designsByView: {},
       stageSize: { width: 600, height: 600 },
+      
+      // ===== COLOR MANAGEMENT STATE =====
+      selectedColors: [],
+      featuredColorId: null,
+      currentProductColorId: null,
+
+      // ===== IMAGE STORE =====
       imageStore: new Map(),
 
       // ===== ACTIONS ONLY (No getters - they cause infinite loops) =====
@@ -310,12 +334,90 @@ export const useEditorStore = create<EditorStore>()(
         }));
       },
 
+      // ===== COLOR MANAGEMENT ACTIONS =====
+
+      /**
+       * Set the array of selected colors (up to 5 colors).
+       * Used by the sidebar to manage which colors are available for the product.
+       */
+      setSelectedColors: (colorIds: string[]) => {
+        set(() => ({
+          selectedColors: colorIds.slice(0, 5), // Ensure max 5 colors
+        }));
+      },
+
+      /**
+       * Set the featured color that will be displayed in the storefront.
+       * Must be one of the selected colors.
+       */
+      setFeaturedColor: (colorId: string) => {
+        set(() => ({
+          featuredColorId: colorId,
+        }));
+      },
+
+      /**
+       * Set the current product color being displayed in the canvas.
+       * This affects the background color of the product mockup.
+       */
+      setCurrentProductColor: (colorId: string) => {
+        set(() => ({
+          currentProductColorId: colorId,
+        }));
+      },
+
+      /**
+       * Toggle a color in the selected colors array.
+       * Adds if not present (up to 5 colors), removes if present.
+       * If removing the featured color, resets featured to the first remaining color.
+       */
+      toggleColorSelection: (colorId: string) => {
+        set((state) => {
+          const isSelected = state.selectedColors.includes(colorId);
+          let newSelectedColors: string[];
+          let newFeaturedColorId = state.featuredColorId;
+
+          if (isSelected) {
+            // Remove color
+            newSelectedColors = state.selectedColors.filter(id => id !== colorId);
+            
+            // If we're removing the featured color, set featured to first remaining color
+            if (state.featuredColorId === colorId && newSelectedColors.length > 0) {
+              newFeaturedColorId = newSelectedColors[0];
+            } else if (newSelectedColors.length === 0) {
+              newFeaturedColorId = null;
+            }
+          } else {
+            // Add color (up to 5 max)
+            if (state.selectedColors.length < 5) {
+              newSelectedColors = [...state.selectedColors, colorId];
+              
+              // If no featured color set, make this the featured color
+              if (!state.featuredColorId) {
+                newFeaturedColorId = colorId;
+              }
+            } else {
+              // Already at max, don't add
+              return {};
+            }
+          }
+
+          return {
+            selectedColors: newSelectedColors,
+            featuredColorId: newFeaturedColorId,
+          };
+        });
+      },
+
       resetEditor: () => {
         set(() => ({
           editorData: null,
           currentViewId: "",
           designsByView: {},
           stageSize: { width: 600, height: 600 },
+          selectedColors: [],
+          featuredColorId: null,
+          currentProductColorId: null,
           imageStore: new Map(),
         }));
       },
