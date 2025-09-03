@@ -775,7 +775,7 @@ export const baseSkuRouter = createTRPCRouter({
           }
         }
 
-        // Transform views data
+        // Transform views data - convert field names to match EditorData interface
         const viewsMap = new Map();
         const mockupsMap = new Map(mockupsData.map(m => [m.viewId, m.r2Key]));
 
@@ -788,7 +788,7 @@ export const baseSkuRouter = createTRPCRouter({
               order: row.viewOrder,
               sourceWidthPx: row.sourceWidthPx,
               sourceHeightPx: row.sourceHeightPx,
-              mockupR2Key: mockupsMap.get(row.viewId) || null,
+              mockupImageUrl: mockupsMap.get(row.viewId) ? getPublicUrl(mockupsMap.get(row.viewId)!) : null,
               printArea: null,
             });
           }
@@ -796,12 +796,14 @@ export const baseSkuRouter = createTRPCRouter({
           if (row.printAreaId) {
             viewsMap.get(row.viewId).printArea = {
               id: row.printAreaId,
-              xPx: row.printAreaXPx,
-              yPx: row.printAreaYPx,
-              widthPx: row.printAreaWidthPx,
-              heightPx: row.printAreaHeightPx,
-              sourceWidthPx: row.printAreaSourceWidthPx,
-              sourceHeightPx: row.printAreaSourceHeightPx,
+              base_sku_id: input.baseSkuId, // Add required field
+              view_id: row.viewId, // Add required field
+              x_px: row.printAreaXPx, // Convert camelCase to snake_case
+              y_px: row.printAreaYPx, // Convert camelCase to snake_case
+              width_px: row.printAreaWidthPx, // Convert camelCase to snake_case
+              height_px: row.printAreaHeightPx, // Convert camelCase to snake_case
+              source_width_px: row.printAreaSourceWidthPx, // Convert camelCase to snake_case
+              source_height_px: row.printAreaSourceHeightPx, // Convert camelCase to snake_case
               dpi: row.printAreaDpi,
             };
           }
@@ -814,12 +816,7 @@ export const baseSkuRouter = createTRPCRouter({
             id: baseSku.id,
             code: baseSku.code,
             name: baseSku.name,
-            cost: baseSku.cost.toString(),
-            category: {
-              id: baseSku.categoryId,
-              name: baseSku.categoryName,
-              slug: baseSku.categorySlug,
-            },
+            cost: Number(baseSku.cost), // Convert bigint to number for client-side use
           },
           views,
           colors,

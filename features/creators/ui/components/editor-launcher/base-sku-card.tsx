@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { ColorSwatchRow } from "../editor/color-swatch";
+import { ColorSwatchRow } from "@/components/ui/color-swatch";
 import { cn } from "@/lib/utils";
 import type { BaseProductCard } from "@/features/creators/types/editor.types";
 import { formatCurrency } from "@automattic/format-currency";

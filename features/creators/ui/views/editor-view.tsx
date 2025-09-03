@@ -1,48 +1,45 @@
+// /features/creators/ui/views/editor-view.tsx
 "use client";
+import dynamic from "next/dynamic";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { EditorProvider } from "../components/editor/editor-provider";
+import { EditorSidePanel } from "../components/editor/editor-side-panel";
 
-import { ProductEditor } from "../components/editor/editor-canvas";
-import { trpc } from "@/trpc/client";
-import type { EditorData } from "@/features/creators/types/editor.types";
+const ProductEditor = dynamic(
+  () => import("../components/editor/editor-canvas"),
+  {
+    ssr: false,
+    loading: () => <div>Loading Canvas...</div>,
+  },
+);
 
 interface EditorViewProps {
   baseSkuId: string;
-  initialData?: EditorData;
 }
 
-export const EditorView = ({ baseSkuId, initialData }: EditorViewProps) => {
-  const { data, isLoading, error } = trpc.baseSkus.getEditorData.useQuery(
-    { baseSkuId },
-    { 
-      initialData,
-      staleTime: 1000 * 60 * 5, // 5 minutes
-    }
-  );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading editor...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-red-600 mb-2">Failed to load product data</p>
-          <p className="text-gray-600 text-sm">{error?.message || "Please try again later"}</p>
-        </div>
-      </div>
-    );
-  }
-
+/**
+ * EditorView Component
+ *
+ * Now includes the complete editor layout with sidebar inside EditorProvider.
+ * This ensures the sidebar has access to initialized store data.
+ */
+export const EditorView = ({ baseSkuId }: EditorViewProps) => {
   return (
-    <div>
-      <ProductEditor editorData={data} />
-    </div>
+    <EditorProvider baseSkuId={baseSkuId}>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 56)",
+          } as React.CSSProperties
+        }
+      >
+        <EditorSidePanel variant="inset" />
+        <SidebarInset>
+          <div className="h-full">
+            <ProductEditor />
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </EditorProvider>
   );
 };

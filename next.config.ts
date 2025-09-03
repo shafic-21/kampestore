@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    turbo: {
+      resolveAlias: {
+        canvas: "./empty.js",
+      },
+    },
+  },
   /* config options here */
   // async redirects() {
   //   return [
@@ -22,10 +29,6 @@ const nextConfig: NextConfig = {
         hostname: "files.xapisoft.co",
       },
     ],
-  },
-  webpack: (config) => {
-    config.externals = [...config.externals, { canvas: 'canvas' }]; // required to make Konva & react-konva work
-    return config;
   },
 };
 
