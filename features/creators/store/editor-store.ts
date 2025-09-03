@@ -63,6 +63,10 @@ interface EditorStore {
   // Current product color being displayed in the canvas
   currentProductColorId: string | null;
 
+  // ===== PRICING MANAGEMENT =====
+  // Customer's set selling price in UGX (client-side uses number)
+  customerPrice: number;
+
   // ===== IMAGE STORE (Outside of immer) =====
   // Store actual HTMLImageElement objects separately
   imageStore: Map<string, HTMLImageElement>;
@@ -83,6 +87,9 @@ interface EditorStore {
   setFeaturedColor: (colorId: string) => void;
   setCurrentProductColor: (colorId: string) => void;
   toggleColorSelection: (colorId: string) => void;
+
+  // ===== PRICING MANAGEMENT ACTIONS =====
+  setCustomerPrice: (price: number) => void;
 }
 
 /**
@@ -178,6 +185,9 @@ export const useEditorStore = create<EditorStore>()(
       featuredColorId: null,
       currentProductColorId: null,
 
+      // ===== PRICING MANAGEMENT STATE =====
+      customerPrice: 45000, // Default customer price in UGX
+
       // ===== IMAGE STORE =====
       imageStore: new Map(),
 
@@ -190,10 +200,16 @@ export const useEditorStore = create<EditorStore>()(
           designs[v.id] = createDefaultDesignState();
         });
 
+        // Calculate default customer price as 120% of base cost
+        const defaultCustomerPrice = data.baseSku.cost 
+          ? Math.round(data.baseSku.cost * 1.2) 
+          : 45000;
+
         set(() => ({
           editorData: data,
           currentViewId: frontView?.id || data.views[0]?.id || "",
           designsByView: designs,
+          customerPrice: defaultCustomerPrice,
         }));
       },
 
@@ -409,6 +425,18 @@ export const useEditorStore = create<EditorStore>()(
         });
       },
 
+      // ===== PRICING MANAGEMENT ACTIONS =====
+
+      /**
+       * Set the customer's selling price.
+       * Used by the sidebar pricing component to update the customer's set price.
+       */
+      setCustomerPrice: (price: number) => {
+        set(() => ({
+          customerPrice: price,
+        }));
+      },
+
       resetEditor: () => {
         set(() => ({
           editorData: null,
@@ -418,6 +446,7 @@ export const useEditorStore = create<EditorStore>()(
           selectedColors: [],
           featuredColorId: null,
           currentProductColorId: null,
+          customerPrice: 45000, // Reset to fallback default price (will be recalculated on next initialization)
           imageStore: new Map(),
         }));
       },

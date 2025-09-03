@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -118,6 +118,9 @@ export function EditorToolbar({
   const currentViewName =
     views.find((v) => v.code === editorView)?.displayName || "Front";
 
+  // Local state to control popover open/close for the view selector
+  const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
+
   return (
     <div className=" z-10">
       <div className="bg-background border px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-4">
@@ -136,7 +139,7 @@ export function EditorToolbar({
         </Button>
 
         {/* View Selector Dropdown */}
-        <Popover>
+        <Popover open={isViewPopoverOpen} onOpenChange={setIsViewPopoverOpen}>
           <PopoverTrigger className={cn(buttonVariants({ variant: "ghost" }))}>
             <span className="flex items-center gap-2">
               {currentViewName}
@@ -153,9 +156,10 @@ export function EditorToolbar({
                       "w-full justify-start flex items-center gap-2",
                       editorView === view.code && "bg-accent",
                     )}
-                    onClick={() =>
-                      handleViewChange(view.code as "front" | "back")
-                    }
+                    onClick={() => {
+                      handleViewChange(view.code as "front" | "back");
+                      setIsViewPopoverOpen(false);
+                    }}
                   >
                     <span>{view.displayName}</span>
                     {editorView === view.code && (

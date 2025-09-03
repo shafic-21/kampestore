@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export const ExitEditorButton = () => (
   <AlertDialog>
@@ -27,10 +28,13 @@ export const ExitEditorButton = () => (
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel>Stay</AlertDialogCancel>
-        <AlertDialogAction
-          className={cn(buttonVariants({ variant: "destructive" }))}
-        >
-          Leave
+        <AlertDialogAction asChild>
+          <Link
+            href="/creator/dashboard"
+            className={cn(buttonVariants({ variant: "destructive" }))}
+          >
+            Leave
+          </Link>
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>

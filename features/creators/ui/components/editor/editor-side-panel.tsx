@@ -25,55 +25,69 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { ExitEditorButton } from "./exit-editor";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ColorSwatch, ColorSwatchRow } from "@/components/ui/color-swatch";
+import { ProductPreviewColorselector } from "./product-color-preview";
 import { useEditorStore } from "../../../store/editor-store";
 import { useShallow } from "zustand/react/shallow";
 
-const BASE_PRICE = 20000;
-
 export function EditorSidePanel({ ...props }) {
   const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
 
   // ===== ZUSTAND STORE CONNECTION =====
-  // Get editor data and color management state from store
-  const { editorData, selectedColors, featuredColorId } = useEditorStore(
-    useShallow((state) => ({
-      editorData: state.editorData,
-      selectedColors: state.selectedColors,
-      featuredColorId: state.featuredColorId,
-    })),
-  );
+  // Get editor data, color management state, and pricing from store
+  const { editorData, selectedColors, featuredColorId, customerPrice } =
+    useEditorStore(
+      useShallow((state) => ({
+        editorData: state.editorData,
+        selectedColors: state.selectedColors,
+        featuredColorId: state.featuredColorId,
+        customerPrice: state.customerPrice,
+      })),
+    );
 
   // Get color management actions from store
   const toggleColorSelection = useEditorStore(
     (state) => state.toggleColorSelection,
   );
-  const setFeaturedColor = useEditorStore((state) => state.setFeaturedColor);
 
-  // ===== LOCAL STATE (Only for pricing which isn't in store yet) =====
-  const [price, setPrice] = useState<string>("45000");
+  // Get pricing management action from store
+  const setCustomerPrice = useEditorStore((state) => state.setCustomerPrice);
+
+  // ===== LOCAL STATE (Non-store state only) =====
   const [selectedView, setSelectedView] = useState<string>("front");
+  // String version of customerPrice for input field
+  const [priceInputValue, setPriceInputValue] = useState<string>(
+    customerPrice.toString(),
+  );
 
   // ===== COMPUTED VALUES =====
-  // Calculate profit (price minus base price)
-  const profit = useMemo(() => {
-    const priceNum = Number.parseFloat(price) || 0;
-    return Math.max(0, priceNum - BASE_PRICE);
-  }, [price]);
+  // Numeric base cost (server may return string)
+  const baseCost = useMemo(() => Number(editorData?.baseSku?.cost ?? 0), [editorData?.baseSku?.cost]);
+
+  // Parse the user's typed value to reflect UI state immediately
+  const typedPrice = useMemo(() => {
+    if (priceInputValue === "") return NaN;
+    const n = Number(priceInputValue);
+    return Number.isFinite(n) ? n : NaN;
+  }, [priceInputValue]);
+
+  // Red state when user tries to set a price below base cost
+  const isBelowCost = useMemo(() => Number.isFinite(typedPrice) && typedPrice < baseCost, [typedPrice, baseCost]);
+
+  // Display profit uses typed value if available; otherwise falls back to store value
+  const displayProfit = useMemo(() => {
+    const price = Number.isFinite(typedPrice) ? (typedPrice as number) : customerPrice;
+    return Math.max(0, price - baseCost);
+  }, [typedPrice, customerPrice, baseCost]);
 
   // Get available colors from editor data (replaces AVAILABLE_COLORS hardcoded array)
-  const availableColors = useMemo(() => {
-    return editorData?.colors || [];
-  }, [editorData]);
-
+  const availableColors = editorData?.colors || [];
   // Get base color options from selected colors (filtered from available colors)
-  const baseColorOptions = useMemo(() => {
-    return availableColors.filter((color) => selectedColors.includes(color.id));
-  }, [availableColors, selectedColors]);
+
+  // Get front view mockup URL for the color previews
 
   // ===== EARLY RETURN FOR LOADING =====
   if (!editorData) {
@@ -103,24 +117,26 @@ export function EditorSidePanel({ ...props }) {
     toggleColorSelection(colorId);
   };
 
+  /**
+   * Handle price input changes.
+   * Updates both the input field (string) and the store (number) values.
+   */
   const handlePriceChange = (value: string) => {
     // Only allow numbers
     const numericValue = value.replace(/[^0-9]/g, "");
     const priceNum = Number.parseFloat(numericValue) || 0;
+    const baseCost = editorData?.baseSku?.cost || 0;
 
-    // Don't allow values below base price (but allow empty for editing)
-    if (priceNum >= BASE_PRICE || numericValue === "") {
-      setPrice(numericValue);
+    // Update input field immediately for better UX
+    setPriceInputValue(numericValue);
+
+    // Don't allow values below base cost (but allow empty for editing)
+    if (priceNum >= baseCost || numericValue === "") {
+      // Only update store if it's a valid price (not empty)
+      if (numericValue !== "" && priceNum > 0) {
+        setCustomerPrice(priceNum);
+      }
     }
-  };
-
-  const formatPrice = (amount: string | number) => {
-    const num = typeof amount === "string" ? Number.parseFloat(amount) : amount;
-    return new Intl.NumberFormat("en-UG", {
-      style: "currency",
-      currency: "UGX",
-      minimumFractionDigits: 0,
-    }).format(num || 0);
   };
 
   return (
@@ -131,7 +147,7 @@ export function EditorSidePanel({ ...props }) {
       style={{ width: "400px" }}
     >
       <SidebarContent>
-        <ScrollArea className="h-full">
+        <ScrollArea className="h-full w-full overflow-hidden max-w-full">
           <div className="space-y-4 p-4">
             <Card className="gap-4">
               <CardHeader className="pb-3">
@@ -181,19 +197,24 @@ export function EditorSidePanel({ ...props }) {
                     <Input
                       id="price"
                       type="text"
-                      value={price}
+                      value={priceInputValue}
                       onChange={(e) => handlePriceChange(e.target.value)}
-                      className="pl-12 text-lg font-medium"
+                      className={cn(
+                        "pl-12 text-lg font-medium",
+                        isBelowCost && "border-red-500 focus-visible:ring-red-500 text-red-600 placeholder:text-red-400",
+                      )}
                       placeholder="45000"
-                      min={BASE_PRICE}
+                      aria-invalid={isBelowCost}
+                      min={baseCost}
                     />
                   </div>
                   <div className="flex justify-between items-center pt-1">
                     <span className="text-sm text-muted-foreground">
                       Profit/Sale:
                     </span>
-                    <span className="text- font-medium text-green-600">
-                      UGX {profit.toLocaleString()}
+                    <span className={cn("text-sm font-medium", isBelowCost ? "text-red-600" : "text-green-600")}
+                    >
+                      UGX {displayProfit.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -211,15 +232,8 @@ export function EditorSidePanel({ ...props }) {
                     This color will be used for display in your storefront
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <ColorSwatchRow
-                    colors={baseColorOptions}
-                    totalColors={5}
-                    maxVisible={5}
-                    selectedColorId={featuredColorId || undefined}
-                    isSelectable={true}
-                    onColorSelect={setFeaturedColor}
-                  />
+                <CardContent className="overflow-hidden">
+                  <ProductPreviewColorselector />
                 </CardContent>
               </Card>
             )}

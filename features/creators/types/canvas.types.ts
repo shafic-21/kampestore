@@ -56,6 +56,7 @@ export interface BaseSku {
   id: string; // Unique identifier
   code: string; // Machine-readable product code
   name: string; // Product display name
+  cost: number; // Base cost in UGX (client-side uses number, database uses bigint)
 }
 
 /**

@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface ColorSwatchProps {
   color: {
@@ -47,30 +48,36 @@ export function ColorSwatch({
   };
 
   return (
-    <div
-      className={cn(
-        "rounded-full flex-shrink-0 relative flex items-center justify-center",
-        sizeClasses[size],
-        isLight && "border border-gray-200",
-        isSelectable && !isDisabled && "cursor-pointer hover:scale-110 transition-transform",
-        isDisabled && "cursor-not-allowed",
-        isSelected && "ring-2 ring-offset-1 ring-primary",
-        className,
-      )}
-      style={{ backgroundColor: color.hexColor }}
-      title={color.displayName}
-      onClick={handleClick}
-    >
-      {isSelected && (
-        <Check
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
           className={cn(
-            checkSizes[size],
-            isLight ? "text-foreground" : "text-white",
+            "rounded-full flex-shrink-0 relative flex items-center justify-center",
+            sizeClasses[size],
+            isLight && "border border-gray-200",
+            isSelectable && !isDisabled && "cursor-pointer hover:scale-110 transition-transform",
+            isDisabled && "cursor-not-allowed",
+            isSelected && "ring-2 ring-offset-1 ring-primary",
+            className,
           )}
-          strokeWidth={3}
-        />
-      )}
-    </div>
+          style={{ backgroundColor: color.hexColor }}
+          onClick={handleClick}
+        >
+          {isSelected && (
+            <Check
+              className={cn(
+                checkSizes[size],
+                isLight ? "text-foreground" : "text-white",
+              )}
+              strokeWidth={3}
+            />
+          )}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        {color.displayName}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
