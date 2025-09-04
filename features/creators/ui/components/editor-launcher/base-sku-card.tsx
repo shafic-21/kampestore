@@ -49,6 +49,7 @@ export function BaseSkuCard({ product, className }: BaseSkuCardProps) {
           <ColorSwatchRow
             colors={product.colors}
             totalColors={product.totalColors}
+            swatchSize="xs"
             maxVisible={10}
           />
         </div>

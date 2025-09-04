@@ -11,22 +11,23 @@ interface ProductSelectionViewProps {
   className?: string;
 }
 
-export function BaseSelectionView({
-  className,
-}: ProductSelectionViewProps) {
+export function BaseSelectionView({ className }: ProductSelectionViewProps) {
   const [query] = useQueryState("q", { defaultValue: "" });
   const [activeCategory] = useQueryState("category");
   const [page] = useQueryState("page", { defaultValue: "1" });
 
   // Fetch data using tRPC React Query hooks
-  const { data, isLoading, isError } = trpc.baseSkus.listBaseProducts.useQuery({
-    query,
-    category: activeCategory || undefined,
-    page: parseInt(page, 10),
-    limit: 20,
-  }, {
-    staleTime: 30000, // 30 seconds to prevent duplicate requests
-  });
+  const { data, isLoading, isError } = trpc.baseSkus.listBaseProducts.useQuery(
+    {
+      query,
+      category: activeCategory || undefined,
+      page: parseInt(page, 10),
+      limit: 20,
+    },
+    {
+      staleTime: 30000, // 30 seconds to prevent duplicate requests
+    },
+  );
 
   if (isLoading) {
     return (
@@ -48,10 +49,15 @@ export function BaseSelectionView({
   const showNewProducts = !activeCategory && !query;
 
   return (
-    <div className={cn("", className)}>
+    <div
+      className={cn(
+        "container mx-auto py-8 px-4 max-w-7xl space-y-10",
+        className,
+      )}
+    >
       <SearchHeader />
 
-      <main className="py-8 pt-20 space-y-12">
+      <main className="py-8 pt-8 space-y-12">
         {showNewProducts && (
           <section className="space-y-6">
             <div className="flex items-center justify-between">

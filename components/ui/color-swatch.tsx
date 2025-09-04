@@ -1,6 +1,10 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 
 interface ColorSwatchProps {
   color: {
@@ -55,7 +59,9 @@ export function ColorSwatch({
             "rounded-full flex-shrink-0 relative flex items-center justify-center",
             sizeClasses[size],
             isLight && "border border-gray-200",
-            isSelectable && !isDisabled && "cursor-pointer hover:scale-110 transition-transform",
+            isSelectable &&
+              !isDisabled &&
+              "cursor-pointer hover:scale-110 transition-transform",
             isDisabled && "cursor-not-allowed",
             isSelected && "ring-2 ring-offset-1 ring-primary",
             className,
@@ -74,9 +80,7 @@ export function ColorSwatch({
           )}
         </div>
       </TooltipTrigger>
-      <TooltipContent>
-        {color.displayName}
-      </TooltipContent>
+      <TooltipContent>{color.displayName}</TooltipContent>
     </Tooltip>
   );
 }
@@ -92,6 +96,7 @@ interface ColorSwatchRowProps {
   className?: string;
   selectedColorId?: string;
   isSelectable?: boolean;
+  swatchSize?: "xs" | "sm" | "md" | "lg";
   onColorSelect?: (colorId: string) => void;
 }
 
@@ -103,6 +108,7 @@ export function ColorSwatchRow({
   selectedColorId,
   isSelectable = false,
   onColorSelect,
+  swatchSize = "md",
 }: ColorSwatchRowProps) {
   const visibleColors = colors.slice(0, maxVisible);
   const remainingCount = totalColors - maxVisible;
@@ -113,7 +119,7 @@ export function ColorSwatchRow({
         <ColorSwatch
           key={color.id}
           color={color}
-          size="md"
+          size={swatchSize}
           isSelected={selectedColorId === color.id}
           isSelectable={isSelectable}
           onSelect={onColorSelect}
