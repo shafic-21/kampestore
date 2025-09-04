@@ -58,7 +58,7 @@ const ProductEditor = () => {
     currentViewId,
     designsByView,
     stageSize,
-    imageStore,
+    fileStore,
     currentProductColorId,
   } = useEditorStore(
     useShallow((state) => ({
@@ -66,7 +66,7 @@ const ProductEditor = () => {
       currentViewId: state.currentViewId,
       designsByView: state.designsByView,
       stageSize: state.stageSize,
-      imageStore: state.imageStore,
+      fileStore: state.fileStore,
       currentProductColorId: state.currentProductColorId,
     })),
   );
@@ -77,17 +77,38 @@ const ProductEditor = () => {
     return editorData.views.find((v) => v.id === currentViewId) || null;
   }, [editorData, currentViewId]);
 
+  // State for the current design image
+  const [designImage, setDesignImage] = useState<HTMLImageElement | null>(null);
+
+  // Get current design state
   const currentDesign = useMemo(() => {
     const designState =
       designsByView[currentViewId] || createDefaultDesignState();
+    return designState;
+  }, [designsByView, currentViewId]);
 
-    return {
-      ...designState,
-      image: designState.imageId
-        ? imageStore.get(designState.imageId) || null
-        : null,
+  // Load image from file when design changes
+  useEffect(() => {
+    const loadImage = async () => {
+      if (currentDesign.fileId) {
+        const file = fileStore.get(currentDesign.fileId);
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new window.Image();
+            img.onload = () => setDesignImage(img);
+            img.src = e.target?.result as string;
+          };
+          reader.readAsDataURL(file);
+        } else {
+          setDesignImage(null);
+        }
+      } else {
+        setDesignImage(null);
+      }
     };
-  }, [designsByView, currentViewId, imageStore]);
+    loadImage();
+  }, [currentDesign.fileId, fileStore]);
 
   // Get the current product color object for background rendering
   const currentProductColor = useMemo(() => {
@@ -213,19 +234,18 @@ const ProductEditor = () => {
   }, [sourceW, sourceH, setStageSize]);
 
   // ===== TRANSFORMER SYNC =====
+  // Ensure the Transformer attaches when the image node becomes available (after async load)
   useEffect(() => {
-    if (
-      editorMode === "design" &&
-      currentDesign.isSelected &&
-      transformerRef.current &&
-      designRef.current
-    ) {
-      transformerRef.current.nodes([designRef.current]);
-      transformerRef.current.getLayer()?.batchDraw();
-    } else if (transformerRef.current) {
-      transformerRef.current.nodes([]);
+    const transformer = transformerRef.current;
+    const node = designRef.current;
+
+    if (editorMode === "design" && currentDesign.isSelected && transformer && node) {
+      transformer.nodes([node]);
+      transformer.getLayer()?.batchDraw();
+    } else if (transformer) {
+      transformer.nodes([]);
     }
-  }, [currentDesign.isSelected, editorMode]);
+  }, [currentDesign.isSelected, editorMode, designImage, currentDesign.fileId]);
 
   // ===== LOAD MOCKUP IMAGE =====
   const mockupUrl = currentView?.mockupImageUrl || null;
@@ -266,18 +286,9 @@ const ProductEditor = () => {
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new window.Image();
-        img.onload = () => {
-          uploadDesign(img, file);
-          if (e.target) e.target.value = "";
-        };
-        img.onerror = () => alert("Failed to load image");
-        img.src = event.target?.result as string;
-      };
-      reader.onerror = () => alert("Failed to read file");
-      reader.readAsDataURL(file);
+      // Just pass the file directly to uploadDesign
+      uploadDesign(file);
+      if (e.target) e.target.value = "";
     },
     [uploadDesign],
   );
@@ -346,7 +357,10 @@ const ProductEditor = () => {
         <EditorToolbar
           handleDesignUpload={() => fileInputRef.current?.click()}
           fileInputRef={fileInputRef}
-          currentDesign={currentDesign}
+          currentDesign={{
+            ...currentDesign,
+            image: designImage,
+          }}
         />
         <Button size="lg">Publish</Button>
       </div>
@@ -406,11 +420,11 @@ const ProductEditor = () => {
                       listening={false}
                     />
                     {/* mockup overlay (top) */}
-                    {currentDesign.image && (
+                    {designImage && (
                       <Group clip={printAreaBounds}>
                         <Image
                           ref={designRef}
-                          image={currentDesign.image}
+                          image={designImage}
                           x={designRel.x}
                           y={designRel.y}
                           width={designRel.width}
@@ -467,11 +481,11 @@ const ProductEditor = () => {
                         listening={false}
                       />
                     )}
-                    {currentDesign.image && (
+                    {designImage && (
                       <Group clip={printAreaBounds}>
                         <Image
                           ref={designRef}
-                          image={currentDesign.image}
+                          image={designImage}
                           x={designRel.x}
                           y={designRel.y}
                           width={designRel.width}
@@ -495,7 +509,7 @@ const ProductEditor = () => {
 
               {/* Transformer on top in design mode */}
               {editorMode === "design" &&
-                currentDesign.image &&
+                designImage &&
                 currentDesign.isSelected && (
                   <Transformer
                     ref={transformerRef}

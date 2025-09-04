@@ -22,7 +22,7 @@ interface DesignAttributes {
  * We store the image separately to avoid immer issues with DOM objects.
  */
 interface ViewDesignState {
-  imageId: string | null; // ID to reference the image in imageStore
+  fileId: string | null; // ID to reference the file in fileStore
   attrs: DesignAttributes; // Position/transform attributes
   isSelected: boolean; // Whether design is currently selected
   printQuality: "Good" | "Fair" | "Poor"; // DPI-based quality assessment
@@ -31,6 +31,27 @@ interface ViewDesignState {
     width: number;
     height: number;
   };
+}
+
+/**
+ * Normalized placement data for cross-product compatibility.
+ * All coordinates are relative to the print area (0-1 range).
+ */
+export interface NormalizedPlacement {
+  // Position relative to print area (0-1 range)
+  xPercent: number;        // 0 = left edge, 0.5 = center, 1 = right edge
+  yPercent: number;        // 0 = top edge, 0.5 = center, 1 = bottom edge
+  
+  // Size relative to print area (0-1 range)
+  widthPercent: number;    // % of print area width
+  heightPercent: number;   // % of print area height
+  
+  // Transform properties
+  rotation: number;        // Rotation in degrees
+  
+  // Physical dimensions for DPI calculations
+  physicalWidthInches: number;
+  physicalHeightInches: number;
 }
 
 /**
@@ -67,15 +88,15 @@ interface EditorStore {
   // Customer's set selling price in UGX (client-side uses number)
   customerPrice: number;
 
-  // ===== IMAGE STORE (Outside of immer) =====
-  // Store actual HTMLImageElement objects separately
-  imageStore: Map<string, HTMLImageElement>;
+  // ===== FILE STORE (Outside of immer) =====
+  // Store actual File objects separately
+  fileStore: Map<string, File>;
 
   // ===== ACTIONS ONLY (No computed getters - they cause infinite loops in v5) =====
   initializeEditor: (data: EditorData) => void;
   setCurrentView: (viewId: string) => void;
   setStageSize: (size: StageSize) => void;
-  uploadDesign: (imageElement: HTMLImageElement, fileData?: File) => void;
+  uploadDesign: (file: File) => void;
   updateDesignAttributes: (attrs: Partial<DesignAttributes>) => void;
   setDesignSelection: (isSelected: boolean) => void;
   deleteCurrentDesign: () => void;
@@ -90,6 +111,11 @@ interface EditorStore {
 
   // ===== PRICING MANAGEMENT ACTIONS =====
   setCustomerPrice: (price: number) => void;
+  
+  // ===== PLACEMENT MANAGEMENT ACTIONS =====
+  getCurrentNormalizedPlacement: () => NormalizedPlacement | null;
+  applyNormalizedPlacement: (placement: NormalizedPlacement) => void;
+  getPublishingData: () => { file: File | null; placement: NormalizedPlacement | null } | null;
 }
 
 /**
@@ -97,7 +123,7 @@ interface EditorStore {
  * EXPORTED so components can use it when computing currentDesign.
  */
 export const createDefaultDesignState = (): ViewDesignState => ({
-  imageId: null,
+  fileId: null,
   attrs: {
     x: 0,
     y: 0,
@@ -112,10 +138,27 @@ export const createDefaultDesignState = (): ViewDesignState => ({
 });
 
 /**
- * Generate unique ID for images.
+ * Generate unique ID for files.
  */
-const generateImageId = () =>
-  `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+const generateFileId = () =>
+  `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+/**
+ * Helper function to create HTMLImageElement from File.
+ */
+const createImageFromFile = (file: File): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 /**
  * Helper function to get current view from raw state.
@@ -156,6 +199,13 @@ const getPrintAreaBoundsFromState = (state: {
 };
 
 /**
+ * Clamp a value between min and max bounds.
+ * Used to ensure normalized coordinates stay within 0-1 range.
+ */
+const clamp = (value: number, min: number, max: number): number => 
+  Math.max(min, Math.min(max, value));
+
+/**
  * Main editor store using Zustand.
  * Images are stored in a Map outside of the immer state to avoid DOM object issues.
  *
@@ -179,8 +229,8 @@ export const useEditorStore = create<EditorStore>()(
       // ===== PRICING MANAGEMENT STATE =====
       customerPrice: 45000, // Default customer price in UGX
 
-      // ===== IMAGE STORE =====
-      imageStore: new Map(),
+      // ===== FILE STORE =====
+      fileStore: new Map(),
 
       // ===== ACTIONS ONLY (No getters - they cause infinite loops) =====
 
@@ -216,12 +266,15 @@ export const useEditorStore = create<EditorStore>()(
         get().calculatePrintQuality();
       },
 
-      uploadDesign: (imageElement, fileData) => {
+      uploadDesign: async (file) => {
         const state = get();
         const { currentViewId } = state;
 
+        // Create image from file to get dimensions
+        const imageElement = await createImageFromFile(file);
+
         const printBounds = getPrintAreaBoundsFromState(state);
-        const imageId = generateImageId();
+        const fileId = generateFileId();
 
         const originalWidth =
           imageElement.naturalWidth || imageElement.width || 200;
@@ -236,7 +289,7 @@ export const useEditorStore = create<EditorStore>()(
         const y = printBounds.y + (printBounds.height - height) / 2;
 
         const nextDesign: ViewDesignState = {
-          imageId,
+          fileId,
           attrs: { x, y, width, height, rotation: 0, scaleX: 1, scaleY: 1 },
           isSelected: true,
           printQuality: "Good",
@@ -244,11 +297,11 @@ export const useEditorStore = create<EditorStore>()(
         };
 
         set((s) => {
-          const nextImageStore = new Map(s.imageStore);
-          nextImageStore.set(imageId, imageElement);
+          const nextFileStore = new Map(s.fileStore);
+          nextFileStore.set(fileId, file);
 
           return {
-            imageStore: nextImageStore,
+            fileStore: nextFileStore,
             designsByView: { ...s.designsByView, [currentViewId]: nextDesign },
           };
         });
@@ -286,11 +339,11 @@ export const useEditorStore = create<EditorStore>()(
         const curr = designsByView[currentViewId];
 
         set((s) => {
-          const nextImageStore = new Map(s.imageStore);
-          if (curr?.imageId) nextImageStore.delete(curr.imageId);
+          const nextFileStore = new Map(s.fileStore);
+          if (curr?.fileId) nextFileStore.delete(curr.fileId);
 
           return {
-            imageStore: nextImageStore,
+            fileStore: nextFileStore,
             designsByView: {
               ...s.designsByView,
               [currentViewId]: createDefaultDesignState(),
@@ -300,16 +353,19 @@ export const useEditorStore = create<EditorStore>()(
       },
 
       // 8) calculatePrintQuality: write back a new designsByView ref
-      calculatePrintQuality: () => {
+      calculatePrintQuality: async () => {
         const state = get();
-        const { currentViewId, designsByView, imageStore } = state;
+        const { currentViewId, designsByView, fileStore } = state;
         const currentView = getCurrentViewFromState(state);
         const printArea = currentView?.printArea;
         const designState = designsByView[currentViewId];
-        if (!designState?.imageId || !printArea || !currentView) return;
+        if (!designState?.fileId || !printArea || !currentView) return;
 
-        const image = imageStore.get(designState.imageId);
-        if (!image) return;
+        const file = fileStore.get(designState.fileId);
+        if (!file) return;
+
+        // Create image from file to calculate quality
+        const image = await createImageFromFile(file);
 
         const realW = designState.attrs.width;
         const realH = designState.attrs.height;
@@ -428,6 +484,88 @@ export const useEditorStore = create<EditorStore>()(
         }));
       },
 
+      // ===== PLACEMENT MANAGEMENT ACTIONS =====
+
+      /**
+       * Convert current design placement to normalized coordinates (0-1 range).
+       * Returns null if no design is present or data is incomplete.
+       */
+      getCurrentNormalizedPlacement: () => {
+        const { designsByView, currentViewId, fileStore } = get();
+        const currentView = getCurrentViewFromState(get());
+        const printArea = currentView?.printArea;
+        const designState = designsByView[currentViewId];
+        
+        if (!designState?.fileId || !printArea || !currentView) {
+          return null;
+        }
+        
+        const { attrs } = designState;
+        
+        // Convert source coordinates to print area relative coordinates
+        const xPercent = clamp((attrs.x - printArea.x_px) / printArea.width_px, 0, 1);
+        const yPercent = clamp((attrs.y - printArea.y_px) / printArea.height_px, 0, 1);
+        const widthPercent = clamp(attrs.width / printArea.width_px, 0, 1);
+        const heightPercent = clamp(attrs.height / printArea.height_px, 0, 1);
+        
+        // Calculate physical dimensions
+        const physicalWidthInches = attrs.width / printArea.dpi;
+        const physicalHeightInches = attrs.height / printArea.dpi;
+        
+        return {
+          xPercent,
+          yPercent,
+          widthPercent,
+          heightPercent,
+          rotation: attrs.rotation,
+          physicalWidthInches,
+          physicalHeightInches,
+        };
+      },
+
+      /**
+       * Apply normalized placement data to the current design.
+       * Converts normalized coordinates back to source coordinate space.
+       */
+      applyNormalizedPlacement: (placement: NormalizedPlacement) => {
+        const currentView = getCurrentViewFromState(get());
+        const printArea = currentView?.printArea;
+        
+        if (!printArea) return;
+        
+        // Convert normalized placement back to source coordinates
+        const sourceX = printArea.x_px + (placement.xPercent * printArea.width_px);
+        const sourceY = printArea.y_px + (placement.yPercent * printArea.height_px);
+        const sourceWidth = placement.widthPercent * printArea.width_px;
+        const sourceHeight = placement.heightPercent * printArea.height_px;
+        
+        get().updateDesignAttributes({
+          x: sourceX,
+          y: sourceY,
+          width: sourceWidth,
+          height: sourceHeight,
+          rotation: placement.rotation,
+        });
+      },
+
+      /**
+       * Get both file and normalized placement data for publishing flow.
+       * Returns null if no design is present.
+       */
+      getPublishingData: () => {
+        const { designsByView, currentViewId, fileStore } = get();
+        const designState = designsByView[currentViewId];
+        
+        if (!designState?.fileId) {
+          return null;
+        }
+        
+        const file = fileStore.get(designState.fileId) || null;
+        const placement = get().getCurrentNormalizedPlacement();
+        
+        return { file, placement };
+      },
+
       resetEditor: () => {
         set(() => ({
           editorData: null,
@@ -438,7 +576,7 @@ export const useEditorStore = create<EditorStore>()(
           featuredColorId: null,
           currentProductColorId: null,
           customerPrice: 45000, // Reset to fallback default price (will be recalculated on next initialization)
-          imageStore: new Map(),
+          fileStore: new Map(),
         }));
       },
     }),
@@ -449,13 +587,13 @@ export const useEditorStore = create<EditorStore>()(
 /**
  * IMPORTANT: Components should use this pattern for computed values:
  *
- * const { editorData, currentViewId, designsByView, stageSize, imageStore } =
+ * const { editorData, currentViewId, designsByView, stageSize, fileStore } =
  *   useEditorStore(useShallow((state) => ({
  *     editorData: state.editorData,
  *     currentViewId: state.currentViewId,
  *     designsByView: state.designsByView,
  *     stageSize: state.stageSize,
- *     imageStore: state.imageStore
+ *     fileStore: state.fileStore
  *   })));
  *
  * const currentView = useMemo(() => {
@@ -463,11 +601,17 @@ export const useEditorStore = create<EditorStore>()(
  *   return editorData.views.find(v => v.id === currentViewId) || null;
  * }, [editorData, currentViewId]);
  *
- * const currentDesign = useMemo(() => {
- *   const designState = designsByView[currentViewId] || createDefaultDesignState();
- *   return {
- *     ...designState,
- *     image: designState.imageId ? imageStore.get(designState.imageId) || null : null
- *   };
- * }, [designsByView, currentViewId, imageStore]);
+ * // Create image from file on-demand
+ * const [currentImage, setCurrentImage] = useState<HTMLImageElement | null>(null);
+ * useEffect(() => {
+ *   const designState = designsByView[currentViewId];
+ *   if (designState?.fileId) {
+ *     const file = fileStore.get(designState.fileId);
+ *     if (file) {
+ *       createImageFromFile(file).then(setCurrentImage);
+ *     }
+ *   } else {
+ *     setCurrentImage(null);
+ *   }
+ * }, [designsByView, currentViewId, fileStore]);
  */
