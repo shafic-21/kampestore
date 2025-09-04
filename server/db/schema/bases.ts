@@ -156,6 +156,10 @@ export const baseSkuMockups = pgTable(
     viewId: uuid("view_id")
       .notNull()
       .references(() => baseSkuViews.id, { onDelete: "cascade" }),
+    // Nullable color for color-specific mockups; must be one of the base SKU's color set values
+    colorValueId: uuid("color_value_id").references(() => attributeValues.id, {
+      onDelete: "set null",
+    }),
     purpose: text("purpose", {
       enum: ["editor_background", "display_card", "lifestyle"],
     }).notNull(),
@@ -168,6 +172,7 @@ export const baseSkuMockups = pgTable(
     index("base_sku_mockups_base_sku_id_idx").on(table.baseSkuId),
     index("base_sku_mockups_view_id_idx").on(table.viewId),
     index("base_sku_mockups_purpose_idx").on(table.purpose),
+    index("base_sku_mockups_color_value_id_idx").on(table.colorValueId),
   ],
 );
 
@@ -266,5 +271,9 @@ export const baseSkuMockupsRelations = relations(baseSkuMockups, ({ one }) => ({
   view: one(baseSkuViews, {
     fields: [baseSkuMockups.viewId],
     references: [baseSkuViews.id],
+  }),
+  colorValue: one(attributeValues, {
+    fields: [baseSkuMockups.colorValueId],
+    references: [attributeValues.id],
   }),
 }));

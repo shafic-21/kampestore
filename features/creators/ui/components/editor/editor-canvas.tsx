@@ -176,8 +176,16 @@ const ProductEditor = () => {
       const entry = entries[0];
       if (!entry) return;
 
+      // Get current source dimensions from closure - they're available
+      // but we don't depend on them for re-running the effect
+      const currentSourceW = sourceW;
+      const currentSourceH = sourceH;
+      
+      // Skip if dimensions not loaded yet
+      if (!currentSourceW || !currentSourceH) return;
+
       const { width, height } = entry.contentRect;
-      const maxSize = Math.min(sourceW, sourceH);
+      const maxSize = Math.min(currentSourceW, currentSourceH);
       const scale = Math.min(1, width / maxSize, height / maxSize);
       const stageSize = Math.floor(maxSize * scale);
 
@@ -186,6 +194,17 @@ const ProductEditor = () => {
 
     resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
+  }, []); // Empty deps - observer persists for component lifetime
+
+  // Add separate effect to trigger initial sizing when sourceW/H load
+  useEffect(() => {
+    if (sourceW > 0 && sourceH > 0 && containerRef.current) {
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      const maxSize = Math.min(sourceW, sourceH);
+      const scale = Math.min(1, width / maxSize, height / maxSize);
+      const stageSize = Math.floor(maxSize * scale);
+      setStageSize({ width: stageSize, height: stageSize });
+    }
   }, [sourceW, sourceH, setStageSize]);
 
   // ===== TRANSFORMER SYNC =====
