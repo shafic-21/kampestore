@@ -132,15 +132,12 @@ const getCurrentViewFromState = (state: {
 };
 
 /**
- * Calculate print area bounds for the new scaling approach.
- *
- * Stage size now matches mockup size exactly (scaled if needed).
- * Print area coordinates are scaled directly from source dimensions.
+ * Get print area bounds in source coordinate space.
+ * Stage scaling is handled by Konva Stage transform, so we return raw DB values.
  */
 const getPrintAreaBoundsFromState = (state: {
   editorData: EditorData | null;
   currentViewId: string;
-  stageSize: StageSize;
 }): { x: number; y: number; width: number; height: number } => {
   const currentView = getCurrentViewFromState(state);
   const printArea = currentView?.printArea;
@@ -149,18 +146,12 @@ const getPrintAreaBoundsFromState = (state: {
     return { x: 0, y: 0, width: 0, height: 0 };
   }
 
-  // Calculate scale based on stage size vs source size
-  const sourceSize = Math.min(
-    currentView.sourceWidthPx,
-    currentView.sourceHeightPx,
-  );
-  const scale = sourceSize > 0 ? state.stageSize.width / sourceSize : 1;
-
+  // Return raw DB coordinates - Stage scaling handles display
   return {
-    x: printArea.x_px * scale,
-    y: printArea.y_px * scale,
-    width: printArea.width_px * scale,
-    height: printArea.height_px * scale,
+    x: printArea.x_px,
+    y: printArea.y_px,
+    width: printArea.width_px,
+    height: printArea.height_px,
   };
 };
 

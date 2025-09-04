@@ -53,17 +53,23 @@ const ProductEditor = () => {
   );
 
   // ===== ZUSTAND STORE - GRANULAR SELECTION =====
-  const { editorData, currentViewId, designsByView, stageSize, imageStore, currentProductColorId } =
-    useEditorStore(
-      useShallow((state) => ({
-        editorData: state.editorData,
-        currentViewId: state.currentViewId,
-        designsByView: state.designsByView,
-        stageSize: state.stageSize,
-        imageStore: state.imageStore,
-        currentProductColorId: state.currentProductColorId,
-      })),
-    );
+  const {
+    editorData,
+    currentViewId,
+    designsByView,
+    stageSize,
+    imageStore,
+    currentProductColorId,
+  } = useEditorStore(
+    useShallow((state) => ({
+      editorData: state.editorData,
+      currentViewId: state.currentViewId,
+      designsByView: state.designsByView,
+      stageSize: state.stageSize,
+      imageStore: state.imageStore,
+      currentProductColorId: state.currentProductColorId,
+    })),
+  );
 
   // ===== COMPUTED VALUES WITH USEMEMO =====
   const currentView = useMemo(() => {
@@ -88,7 +94,11 @@ const ProductEditor = () => {
     if (!editorData?.colors || !currentProductColorId) {
       return { hexColor: "#F5F5DC" }; // Default fallback color (beige)
     }
-    return editorData.colors.find((color) => color.id === currentProductColorId) || { hexColor: "#F5F5DC" };
+    return (
+      editorData.colors.find((color) => color.id === currentProductColorId) || {
+        hexColor: "#F5F5DC",
+      }
+    );
   }, [editorData?.colors, currentProductColorId]);
 
   // ===== MOCKUP POSITIONING - FILLS STAGE =====
@@ -97,37 +107,16 @@ const ProductEditor = () => {
   const sourceH = currentView?.sourceHeightPx ?? 0;
   const rel = (abs: number, origin: number) => Math.round(abs - origin);
 
-  // Stage size is calculated to match mockup size (scaled if needed)
-  const fitScale = useMemo(() => {
-    if (!sourceW || !sourceH || !stageSize.width) return 1;
-    return stageSize.width / Math.min(sourceW, sourceH);
-  }, [stageSize, sourceW, sourceH]);
+  // No longer need fitScale - Stage handles scaling with scaleX/scaleY
+  // Keep all elements in source pixel space
 
-  // Mockup fills entire stage (no centering needed)
-  const mockupDimensions = useMemo(() => {
-    return {
-      x: 0,
-      y: 0,
-      width: stageSize.width,
-      height: stageSize.height,
-      scale: fitScale,
-    };
-  }, [fitScale, stageSize]);
-
-  // ===== PRINT AREA BOUNDS - SCALED FROM SOURCE =====
-  // Print area coordinates are scaled directly from source dimensions
+  // ===== PRINT AREA BOUNDS - SOURCE SPACE =====
+  // Print area coordinates stay in source pixels (Stage scale handles display)
   const printAreaBounds = useMemo(() => {
     const pa = currentView?.printArea;
     if (!pa) return { x: 0, y: 0, width: 0, height: 0 };
-
-    const s = mockupDimensions.scale || 1;
-    return {
-      x: Math.round(pa.x_px * s),
-      y: Math.round(pa.y_px * s),
-      width: Math.round(pa.width_px * s),
-      height: Math.round(pa.height_px * s),
-    };
-  }, [currentView, mockupDimensions]);
+    return { x: pa.x_px, y: pa.y_px, width: pa.width_px, height: pa.height_px };
+  }, [currentView]);
 
   // ===== DESIGN POSITIONING - RELATIVE TO STAGE =====
   // Since mockup is at (0,0), design positions are relative to stage origin
@@ -167,44 +156,60 @@ const ProductEditor = () => {
     }
   }
 
-  // ===== RESPONSIVE STAGE SIZING =====
+  // ===== RESPONSIVE SQUARE STAGE SIZING =====
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const el = containerRef.current;
+    if (!el || !sourceW || !sourceH) return;
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-
-      // Get current source dimensions from closure - they're available
-      // but we don't depend on them for re-running the effect
-      const currentSourceW = sourceW;
-      const currentSourceH = sourceH;
-      
-      // Skip if dimensions not loaded yet
-      if (!currentSourceW || !currentSourceH) return;
-
-      const { width, height } = entry.contentRect;
-      const maxSize = Math.min(currentSourceW, currentSourceH);
-      const scale = Math.min(1, width / maxSize, height / maxSize);
-      const stageSize = Math.floor(maxSize * scale);
-
-      setStageSize({ width: stageSize, height: stageSize });
-    });
-
-    resizeObserver.observe(container);
-    return () => resizeObserver.disconnect();
-  }, []); // Empty deps - observer persists for component lifetime
-
-  // Add separate effect to trigger initial sizing when sourceW/H load
-  useEffect(() => {
-    if (sourceW > 0 && sourceH > 0 && containerRef.current) {
-      const { width, height } = containerRef.current.getBoundingClientRect();
-      const maxSize = Math.min(sourceW, sourceH);
-      const scale = Math.min(1, width / maxSize, height / maxSize);
-      const stageSize = Math.floor(maxSize * scale);
-      setStageSize({ width: stageSize, height: stageSize });
+    // Verify mockup is square (optional safety check)
+    if (sourceW !== sourceH) {
+      console.warn("Mockup is not square:", { sourceW, sourceH });
     }
+
+    const updateStageSize = () => {
+      const { width: containerW, height: containerH } =
+        el.getBoundingClientRect();
+
+      // Responsive square sizes based on container width
+      let squareSize: number;
+
+      if (containerW < 640) {
+        // Mobile
+        squareSize = Math.min(containerW - 20, 380);
+      } else if (containerW < 1024) {
+        // Tablet
+        squareSize = Math.min(containerW - 40, 600);
+      } else if (containerW < 1440) {
+        // Laptop
+        squareSize = Math.min(containerW - 60, 700);
+      } else {
+        // Desktop
+        squareSize = Math.min(containerW - 80, 900);
+      }
+
+      // Ensure integer value to prevent sub-pixel rendering
+      squareSize = Math.floor(squareSize);
+
+      setStageSize({
+        width: squareSize,
+        height: squareSize,
+      });
+    };
+
+    // Initial calculation
+    updateStageSize();
+
+    // Observe container changes
+    const ro = new ResizeObserver(updateStageSize);
+    ro.observe(el);
+
+    // Also handle window resize
+    window.addEventListener("resize", updateStageSize);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateStageSize);
+    };
   }, [sourceW, sourceH, setStageSize]);
 
   // ===== TRANSFORMER SYNC =====
@@ -358,13 +363,33 @@ const ProductEditor = () => {
       <div className="w-full flex flex-nowrap gap-8 items-start flex-1 min-h-0">
         <div
           ref={containerRef}
-          className="flex-1 grid place-items-center h-full"
+          className="flex-1 grid place-items-center min-h-0
+                     h-[min(80svh,calc(100svh-10rem))] w-full p-0 overflow-hidden"
         >
           <Stage
-            width={stageSize.width}
-            height={stageSize.height}
+            // Source dimensions (should be square)
+            width={sourceW}
+            height={sourceH}
+            // Uniform scale for square preservation
+            scale={{
+              x: stageSize.width / sourceW,
+              y: stageSize.width / sourceW, // Use width for both to ensure square
+            }}
+            // CSS size matches the calculated square
+            style={{
+              width: `${stageSize.width}px`,
+              height: `${stageSize.width}px`, // Force square
+              // Prevent edge bleeding
+              overflow: "hidden",
+              // Ensure crisp rendering
+              imageRendering: "pixelated",
+              // Clean background
+              backgroundColor: "transparent",
+            }}
             onMouseDown={handleStageClick}
             onTouchStart={handleStageClick}
+            // Optimize for retina displays
+            pixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
           >
             <Layer>
               {/* Parent group at snapped origin; children use (0,0) space */}
@@ -373,10 +398,10 @@ const ProductEditor = () => {
                   // PREVIEW: top→bottom = mockup overlay → design → mockup-sized background
                   <>
                     <Rect
-                      x={0}
-                      y={0}
-                      width={stageSize.width}
-                      height={stageSize.height}
+                      x={0} // No offset needed
+                      y={0} // No offset needed
+                      width={sourceW} // Exact width
+                      height={sourceH} // Exact height
                       fill={currentProductColor.hexColor}
                       listening={false}
                     />
@@ -400,8 +425,8 @@ const ProductEditor = () => {
                         image={mockupImage}
                         x={0}
                         y={0}
-                        width={stageSize.width}
-                        height={stageSize.height}
+                        width={sourceW}
+                        height={sourceH}
                         listening={false}
                       />
                     )}
@@ -411,10 +436,10 @@ const ProductEditor = () => {
                   <>
                     {/* design (top, clipped & draggable) */}
                     <Rect
-                      x={0}
-                      y={0}
-                      width={stageSize.width}
-                      height={stageSize.height}
+                      x={0} // No offset needed
+                      y={0} // No offset needed
+                      width={sourceW} // Exact width
+                      height={sourceH} // Exact height
                       fill={currentProductColor.hexColor}
                       listening={false}
                     />
@@ -424,8 +449,8 @@ const ProductEditor = () => {
                         image={mockupImage}
                         x={0}
                         y={0}
-                        width={stageSize.width}
-                        height={stageSize.height}
+                        width={sourceW}
+                        height={sourceH}
                         listening={false}
                       />
                     )}
