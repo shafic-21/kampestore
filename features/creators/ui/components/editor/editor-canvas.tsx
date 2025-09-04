@@ -239,7 +239,12 @@ const ProductEditor = () => {
     const transformer = transformerRef.current;
     const node = designRef.current;
 
-    if (editorMode === "design" && currentDesign.isSelected && transformer && node) {
+    if (
+      editorMode === "design" &&
+      currentDesign.isSelected &&
+      transformer &&
+      node
+    ) {
       transformer.nodes([node]);
       transformer.getLayer()?.batchDraw();
     } else if (transformer) {
@@ -362,7 +367,7 @@ const ProductEditor = () => {
             image: designImage,
           }}
         />
-        <Button size="lg">Publish</Button>
+        <Button size="lg">Continue</Button>
       </div>
       {/* Hidden file input */}
       <input
