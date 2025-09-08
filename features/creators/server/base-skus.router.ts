@@ -173,6 +173,27 @@ export const baseSkuRouter = createTRPCRouter({
           return acc;
         }, {});
 
+        // Front view mockups (specifically for 'front' view) using editor_background (transparent) like editor
+        const frontRows = await db
+          .select({
+            baseSkuId: baseSkuMockups.baseSkuId,
+            r2Key: baseSkuMockups.r2Key,
+          })
+          .from(baseSkuMockups)
+          .innerJoin(baseSkuViews, eq(baseSkuMockups.viewId, baseSkuViews.id))
+          .where(
+            and(
+              inArray(baseSkuMockups.baseSkuId, pageIds),
+              eq(baseSkuMockups.purpose, "editor_background"),
+              eq(baseSkuViews.code, "front"),
+            ),
+          );
+
+        const frontById = frontRows.reduce<Record<string, string>>((acc, r) => {
+          acc[r.baseSkuId] = r.r2Key;
+          return acc;
+        }, {});
+
         // Colors
         console.log('[listBaseProducts] Fetching color attribute');
         let colorAttr;
@@ -321,6 +342,7 @@ export const baseSkuRouter = createTRPCRouter({
             colors: colorInfo?.colors ?? [],
             totalColors: colorInfo?.totalColors ?? 0,
             heroImageUrl: heroById[p.id] ? getPublicUrl(heroById[p.id]) : "",
+            frontMockupUrl: frontById[p.id] ? getPublicUrl(frontById[p.id]) : "",
           };
         });
 
@@ -618,6 +640,208 @@ export const baseSkuRouter = createTRPCRouter({
       }
     }),
 
+  getListingProducts: publicProcedure
+    .input(productSearchFiltersSchema)
+    .query(async ({ input }) => {
+      try {
+        // Validate category slug if provided
+        if (input.category) {
+          const [existing] = await db
+            .select({ id: categories.id })
+            .from(categories)
+            .where(eq(categories.slug, input.category))
+            .limit(1);
+
+          if (!existing) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: new CategoryNotFoundError(input.category).message,
+            });
+          }
+        }
+
+        // Build WHERE conditions
+        const conditions: (SQL | undefined)[] = [eq(baseSkus.status, "active")];
+
+        if (typeof input.query === "string" && input.query.trim()) {
+          const pattern = like(input.query);
+          const search = or(
+            ilike(baseSkus.name, pattern),
+            ilike(baseSkus.code, pattern),
+            ilike(categories.name, pattern),
+          );
+          conditions.push(search);
+        }
+
+        if (input.category) {
+          conditions.push(eq(categories.slug, input.category));
+        }
+
+        const whereClause = and(...(conditions.filter(Boolean) as SQL[]));
+
+        // Get page slice
+        const offset = (input.page - 1) * input.limit;
+        const pageRows = await db
+          .select({
+            id: baseSkus.id,
+            code: baseSkus.code,
+            name: baseSkus.name,
+            cost: baseSkus.cost,
+            categoryId: baseSkus.categoryId,
+            categoryName: categories.name,
+            categorySlug: categories.slug,
+          })
+          .from(baseSkus)
+          .innerJoin(categories, eq(baseSkus.categoryId, categories.id))
+          .where(whereClause)
+          .limit(input.limit)
+          .offset(offset);
+
+        const pageIds = pageRows.map((p) => p.id);
+        if (pageIds.length === 0) {
+          return { products: [] };
+        }
+
+        // Get front view editor background mockups with print areas
+        const frontViewData = await db
+          .select({
+            baseSkuId: baseSkuMockups.baseSkuId,
+            mockupR2Key: baseSkuMockups.r2Key,
+            viewId: baseSkuViews.id,
+            sourceWidthPx: baseSkuViews.sourceWidthPx,
+            sourceHeightPx: baseSkuViews.sourceHeightPx,
+            printAreaId: baseSkuPrintAreas.id,
+            printAreaXPx: baseSkuPrintAreas.xPx,
+            printAreaYPx: baseSkuPrintAreas.yPx,
+            printAreaWidthPx: baseSkuPrintAreas.widthPx,
+            printAreaHeightPx: baseSkuPrintAreas.heightPx,
+            printAreaSourceWidthPx: baseSkuPrintAreas.sourceWidthPx,
+            printAreaSourceHeightPx: baseSkuPrintAreas.sourceHeightPx,
+            printAreaDpi: baseSkuPrintAreas.dpi,
+          })
+          .from(baseSkuMockups)
+          .innerJoin(baseSkuViews, eq(baseSkuMockups.viewId, baseSkuViews.id))
+          .leftJoin(baseSkuPrintAreas, eq(baseSkuViews.id, baseSkuPrintAreas.viewId))
+          .where(
+            and(
+              inArray(baseSkuMockups.baseSkuId, pageIds),
+              eq(baseSkuMockups.purpose, "editor_background"),
+              eq(baseSkuViews.code, "front")
+            )
+          );
+
+        const frontDataById = frontViewData.reduce<Record<string, typeof frontViewData[0]>>((acc, row) => {
+          acc[row.baseSkuId] = row;
+          return acc;
+        }, {});
+
+        // Get colors
+        const colorAttr = await db
+          .select({ id: attributes.id })
+          .from(attributes)
+          .where(eq(attributes.code, "color"))
+          .limit(1);
+
+        const colorsByBase: Record<
+          string,
+          { colors: Array<{ id: string; hexColor: string; displayName: string }>; totalColors: number }
+        > = {};
+
+        if (colorAttr.length > 0) {
+          const colorRows = await db
+            .select({
+              baseSkuId: baseSkuAttributeRules.baseSkuId,
+              colorId: attributeValues.id,
+              hexColor: attributeValues.hexColor,
+              displayName: attributeValues.displayName,
+              sortOrder: attributeValues.sortOrder,
+            })
+            .from(baseSkuAttributeRules)
+            .innerJoin(
+              attributeValueSets,
+              eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id)
+            )
+            .innerJoin(
+              attributeValueSetMembers,
+              eq(attributeValueSets.id, attributeValueSetMembers.valueSetId)
+            )
+            .innerJoin(
+              attributeValues,
+              eq(attributeValueSetMembers.valueId, attributeValues.id)
+            )
+            .where(
+              and(
+                inArray(baseSkuAttributeRules.baseSkuId, pageIds),
+                eq(baseSkuAttributeRules.attributeId, colorAttr[0].id)
+              )
+            )
+            .orderBy(attributeValues.sortOrder);
+
+          const grouped = new Map<
+            string,
+            Array<{ id: string; hexColor: string; displayName: string; sortOrder: number }>
+          >();
+
+          for (const r of colorRows) {
+            if (!grouped.has(r.baseSkuId)) grouped.set(r.baseSkuId, []);
+            grouped.get(r.baseSkuId)!.push({
+              id: r.colorId,
+              hexColor: r.hexColor ?? "#000000",
+              displayName: r.displayName,
+              sortOrder: r.sortOrder ?? 0,
+            });
+          }
+
+          for (const [baseSkuId, colors] of grouped) {
+            const sorted = colors.sort((a, b) => a.sortOrder - b.sortOrder);
+            const top10 = sorted.slice(0, 10);
+            colorsByBase[baseSkuId] = {
+              colors: top10.map((c) => ({
+                id: c.id,
+                hexColor: c.hexColor,
+                displayName: c.displayName,
+              })),
+              totalColors: colors.length,
+            };
+          }
+        }
+
+        // Build products response
+        const products = pageRows.map((p) => {
+          const colorInfo = colorsByBase[p.id];
+          const frontData = frontDataById[p.id];
+          
+          return {
+            id: p.id,
+            name: p.name,
+            cost: Number(p.cost),
+            colors: colorInfo?.colors ?? [],
+            totalColors: colorInfo?.totalColors ?? 0,
+            frontMockupUrl: frontData?.mockupR2Key ? getPublicUrl(frontData.mockupR2Key) : "",
+            frontPrintArea: frontData?.printAreaId ? {
+              x_px: frontData.printAreaXPx ?? 0,
+              y_px: frontData.printAreaYPx ?? 0,
+              width_px: frontData.printAreaWidthPx ?? 250,
+              height_px: frontData.printAreaHeightPx ?? 200,
+              sourceWidthPx: frontData.printAreaSourceWidthPx ?? frontData.sourceWidthPx ?? 400,
+              sourceHeightPx: frontData.printAreaSourceHeightPx ?? frontData.sourceHeightPx ?? 400,
+              dpi: frontData.printAreaDpi ?? 150,
+            } : null,
+          };
+        });
+
+        return { products };
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        console.error(err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to fetch listing products",
+          cause: err,
+        });
+      }
+    }),
+
   getEditorData: publicProcedure
     .input(z.object({ baseSkuId: z.uuid() }))
     .query(async ({ input }) => {
@@ -838,6 +1062,178 @@ export const baseSkuRouter = createTRPCRouter({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Failed to fetch editor data: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          cause: err,
+        });
+      }
+    }),
+
+  getProductForDesigner: publicProcedure
+    .input(z.object({ baseSkuId: z.string() }))
+    .query(async ({ input }) => {
+      const startTime = Date.now();
+      console.log('[getProductForDesigner] Starting for baseSkuId:', input.baseSkuId);
+      
+      try {
+        // Reuse the getEditorData logic but transform to CachedProduct format
+        console.log('[getProductForDesigner] Fetching base SKU data');
+        const [baseSku] = await db
+          .select({
+            id: baseSkus.id,
+            code: baseSkus.code,
+            name: baseSkus.name,
+            cost: baseSkus.cost,
+          })
+          .from(baseSkus)
+          .where(eq(baseSkus.id, input.baseSkuId))
+          .limit(1);
+
+        if (!baseSku) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Product with ID ${input.baseSkuId} not found`,
+          });
+        }
+
+        // Get views with print areas
+        console.log('[getProductForDesigner] Fetching views and print areas');
+        const viewsData = await db
+          .select({
+            viewId: baseSkuViews.id,
+            viewCode: baseSkuViews.code,
+            viewDisplayName: baseSkuViews.displayName,
+            sourceWidthPx: baseSkuViews.sourceWidthPx,
+            sourceHeightPx: baseSkuViews.sourceHeightPx,
+            printAreaXPx: baseSkuPrintAreas.xPx,
+            printAreaYPx: baseSkuPrintAreas.yPx,
+            printAreaWidthPx: baseSkuPrintAreas.widthPx,
+            printAreaHeightPx: baseSkuPrintAreas.heightPx,
+            printAreaDpi: baseSkuPrintAreas.dpi,
+          })
+          .from(baseSkuViews)
+          .leftJoin(
+            baseSkuPrintAreas,
+            eq(baseSkuViews.id, baseSkuPrintAreas.viewId)
+          )
+          .where(eq(baseSkuViews.baseSkuId, input.baseSkuId))
+          .orderBy(baseSkuViews.order);
+
+        // Get mockups
+        console.log('[getProductForDesigner] Fetching mockups');
+        const mockupsData = await db
+          .select({
+            viewId: baseSkuMockups.viewId,
+            r2Key: baseSkuMockups.r2Key,
+            sourceWidthPx: baseSkuMockups.sourceWidthPx,
+            sourceHeightPx: baseSkuMockups.sourceHeightPx,
+          })
+          .from(baseSkuMockups)
+          .where(
+            and(
+              eq(baseSkuMockups.baseSkuId, input.baseSkuId),
+              eq(baseSkuMockups.purpose, "editor_background")
+            )
+          );
+
+        // Get colors
+        console.log('[getProductForDesigner] Fetching colors');
+        const [colorAttr] = await db
+          .select({ id: attributes.id })
+          .from(attributes)
+          .where(eq(attributes.code, "color"))
+          .limit(1);
+
+        let colors: Array<{ id: string; code: string; displayName: string; hexValue: string; isDefault: boolean }> = [];
+        
+        if (colorAttr) {
+          const colorRows = await db
+            .select({
+              colorId: attributeValues.id,
+              colorCode: attributeValues.code,
+              displayName: attributeValues.displayName,
+              hexValue: attributeValues.hexColor,
+              sortOrder: attributeValues.sortOrder,
+            })
+            .from(baseSkuAttributeRules)
+            .innerJoin(
+              attributeValueSets,
+              eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id)
+            )
+            .innerJoin(
+              attributeValueSetMembers,
+              eq(attributeValueSets.id, attributeValueSetMembers.valueSetId)
+            )
+            .innerJoin(
+              attributeValues,
+              eq(attributeValueSetMembers.valueId, attributeValues.id)
+            )
+            .where(
+              and(
+                eq(baseSkuAttributeRules.baseSkuId, input.baseSkuId),
+                eq(baseSkuAttributeRules.attributeId, colorAttr.id)
+              )
+            )
+            .orderBy(attributeValues.sortOrder);
+
+          colors = colorRows.map((row, index) => ({
+            id: row.colorId,
+            code: row.colorCode || `color-${index}`,
+            displayName: row.displayName,
+            hexValue: row.hexValue || "#000000",
+            isDefault: index === 0,
+          }));
+        }
+
+        // Transform to CachedProduct format
+        const views: Record<string, any> = {};
+        const mockupsMap = new Map((mockupsData || []).map(m => [m.viewId, m]));
+
+        for (const row of viewsData || []) {
+          const mockup = mockupsMap.get(row.viewId);
+          
+          views[row.viewId] = {
+            id: row.viewId,
+            code: row.viewCode,
+            displayName: row.viewDisplayName,
+            printArea: {
+              x_px: row.printAreaXPx || 0,
+              y_px: row.printAreaYPx || 0,
+              width_px: row.printAreaWidthPx || 300,
+              height_px: row.printAreaHeightPx || 300,
+              dpi: row.printAreaDpi || 150,
+            },
+            mockups: mockup ? {
+              [mockup.r2Key]: {
+                r2Key: mockup.r2Key,
+                sourceWidthPx: mockup.sourceWidthPx,
+                sourceHeightPx: mockup.sourceHeightPx,
+              }
+            } : {},
+          };
+        }
+
+        const colorsRecord: Record<string, any> = {};
+        (colors || []).forEach(color => {
+          colorsRecord[color.id] = color;
+        });
+
+        const cachedProduct = {
+          id: baseSku.id,
+          code: baseSku.code,
+          name: baseSku.name,
+          cost: Number(baseSku.cost),
+          views,
+          colors: colorsRecord,
+        };
+
+        console.log(`[getProductForDesigner] Completed in ${Date.now() - startTime}ms`);
+        return cachedProduct;
+
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        console.error('[getProductForDesigner] Error:', err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to fetch product for designer",
           cause: err,
         });
       }

@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "files.xapisoft.co",
       },
+      {
+        protocol: "https",
+        hostname: "via.placeholder.com",
+      },
     ],
   },
 };

@@ -86,7 +86,7 @@ export async function downloadFile(
   return Buffer.from(await response.Body.transformToByteArray());
 }
 
-export async function deleteFile(
+export async function deleteR2File(
   bucket: BucketType,
   key: string,
 ): Promise<void> {
@@ -162,7 +162,19 @@ export async function fileExists(
 }
 
 export function getPublicUrl(key: string): string {
-  return `${process.env.CLOUDFLARE_R2_PUBLIC_URL}/${key}`;
+  const baseUrl = typeof window !== 'undefined' 
+    ? process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL 
+    : process.env.CLOUDFLARE_R2_PUBLIC_URL;
+  return `${baseUrl}/${key}`;
+}
+
+export function extractKeyFromPublicUrl(url: string): string {
+  const baseUrl = typeof window !== 'undefined' 
+    ? process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL 
+    : process.env.CLOUDFLARE_R2_PUBLIC_URL;
+  
+  // Remove the base URL and leading slash to get the key
+  return url.replace(`${baseUrl}/`, '');
 }
 
 export function generateKey(

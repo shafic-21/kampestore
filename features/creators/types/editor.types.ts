@@ -70,3 +70,30 @@ export class CategoryNotFoundError extends TRPCError {
     });
   }
 }
+
+/**
+ * Normalized placement coordinates (0-1 range relative to print area).
+ * Used for applying designs consistently across different products.
+ */
+export interface NormalizedPlacement {
+  /** X position as percentage of print area width (0-1) */
+  xPercent: number;
+
+  /** Y position as percentage of print area height (0-1) */
+  yPercent: number;
+
+  /** Width as percentage of print area width (0-1) */
+  widthPercent: number;
+
+  /** Height as percentage of print area height (0-1) */
+  heightPercent: number;
+
+  /** Rotation angle in degrees */
+  rotation: number;
+
+  /** Physical width in inches for DPI validation */
+  physicalWidthInches: number;
+
+  /** Physical height in inches for DPI validation */
+  physicalHeightInches: number;
+}

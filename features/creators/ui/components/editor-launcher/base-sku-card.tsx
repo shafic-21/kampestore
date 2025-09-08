@@ -16,7 +16,10 @@ interface BaseSkuCardProps {
 export function BaseSkuCard({ product, className }: BaseSkuCardProps) {
   return (
     <div>
-      <Link href={`/editor/${product.id}`} className="group block">
+      <Link
+        href={`/product-design/editor/${product.id}`}
+        className="group block"
+      >
         <Card className={cn("p-0 border-none overflow-hidden", className)}>
           <div className="aspect-square relative overflow-hidden">
             <Image

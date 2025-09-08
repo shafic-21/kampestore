@@ -9,7 +9,7 @@ import {
 interface ColorSwatchProps {
   color: {
     id: string;
-    hexColor: string;
+    hexValue: string;
     displayName: string;
   };
   size?: "xs" | "sm" | "md" | "lg";
@@ -43,7 +43,7 @@ export function ColorSwatch({
     lg: "size-2.5",
   };
 
-  const isLight = isLightColor(color.hexColor);
+  const isLight = isLightColor(color.hexValue);
 
   const handleClick = () => {
     if (isSelectable && !isDisabled && onSelect) {
@@ -66,7 +66,7 @@ export function ColorSwatch({
             isSelected && "ring-2 ring-offset-1 ring-primary",
             className,
           )}
-          style={{ backgroundColor: color.hexColor }}
+          style={{ backgroundColor: color.hexValue }}
           onClick={handleClick}
         >
           {isSelected && (
@@ -88,7 +88,7 @@ export function ColorSwatch({
 interface ColorSwatchRowProps {
   colors: Array<{
     id: string;
-    hexColor: string;
+    hexValue: string;
     displayName: string;
   }>;
   totalColors: number;

@@ -83,9 +83,11 @@
     "recharts": "2.15.4",
     "resend": "^6.0.1",
     "server-only": "^0.0.1",
+    "sharp": "^0.34.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "use-image": "^1.1.4",
+    "uuid": "^12.0.0",
     "vaul": "^1.1.2",
     "zod": "^4.1.0",
     "zustand": "^5.0.7"

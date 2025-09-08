@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { EditorView, EditorData } from "../types/canvas.types";
+import { NormalizedPlacement } from "../types";
 
 /**
  * Design attributes for positioning and transforming designs on the canvas.
@@ -31,27 +32,6 @@ interface ViewDesignState {
     width: number;
     height: number;
   };
-}
-
-/**
- * Normalized placement data for cross-product compatibility.
- * All coordinates are relative to the print area (0-1 range).
- */
-export interface NormalizedPlacement {
-  // Position relative to print area (0-1 range)
-  xPercent: number;        // 0 = left edge, 0.5 = center, 1 = right edge
-  yPercent: number;        // 0 = top edge, 0.5 = center, 1 = bottom edge
-  
-  // Size relative to print area (0-1 range)
-  widthPercent: number;    // % of print area width
-  heightPercent: number;   // % of print area height
-  
-  // Transform properties
-  rotation: number;        // Rotation in degrees
-  
-  // Physical dimensions for DPI calculations
-  physicalWidthInches: number;
-  physicalHeightInches: number;
 }
 
 /**
@@ -92,6 +72,10 @@ interface EditorStore {
   // Store actual File objects separately
   fileStore: Map<string, File>;
 
+  // ===== EDITING GUARDS =====
+  // When true, uploading a new design is disabled (e.g., while editing a listing)
+  isUploadLocked: boolean;
+
   // ===== ACTIONS ONLY (No computed getters - they cause infinite loops in v5) =====
   initializeEditor: (data: EditorData) => void;
   setCurrentView: (viewId: string) => void;
@@ -102,7 +86,8 @@ interface EditorStore {
   deleteCurrentDesign: () => void;
   calculatePrintQuality: () => void;
   resetEditor: () => void;
-  
+  setUploadLocked: (locked: boolean) => void;
+
   // ===== COLOR MANAGEMENT ACTIONS =====
   setSelectedColors: (colorIds: string[]) => void;
   setFeaturedColor: (colorId: string) => void;
@@ -111,11 +96,15 @@ interface EditorStore {
 
   // ===== PRICING MANAGEMENT ACTIONS =====
   setCustomerPrice: (price: number) => void;
-  
+
   // ===== PLACEMENT MANAGEMENT ACTIONS =====
   getCurrentNormalizedPlacement: () => NormalizedPlacement | null;
   applyNormalizedPlacement: (placement: NormalizedPlacement) => void;
-  getPublishingData: () => { file: File | null; placement: NormalizedPlacement | null } | null;
+  getPublishingData: () => {
+    file: File | null;
+    placement: NormalizedPlacement | null;
+  } | null;
+  getCurrentDesignFileId: () => string | null;
 }
 
 /**
@@ -202,7 +191,7 @@ const getPrintAreaBoundsFromState = (state: {
  * Clamp a value between min and max bounds.
  * Used to ensure normalized coordinates stay within 0-1 range.
  */
-const clamp = (value: number, min: number, max: number): number => 
+const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 
 /**
@@ -220,7 +209,10 @@ export const useEditorStore = create<EditorStore>()(
       currentViewId: "",
       designsByView: {},
       stageSize: { width: 600, height: 600 },
-      
+
+      // ===== LISTING MANAGEMENT STATE =====
+      selectedProducts: [],
+
       // ===== COLOR MANAGEMENT STATE =====
       selectedColors: [],
       featuredColorId: null,
@@ -232,6 +224,9 @@ export const useEditorStore = create<EditorStore>()(
       // ===== FILE STORE =====
       fileStore: new Map(),
 
+      // ===== EDITING GUARDS =====
+      isUploadLocked: false,
+
       // ===== ACTIONS ONLY (No getters - they cause infinite loops) =====
 
       initializeEditor: (data) => {
@@ -242,8 +237,8 @@ export const useEditorStore = create<EditorStore>()(
         });
 
         // Calculate default customer price as 120% of base cost
-        const defaultCustomerPrice = data.baseSku.cost 
-          ? Math.round(data.baseSku.cost * 1.2) 
+        const defaultCustomerPrice = data.baseSku.cost
+          ? Math.round(data.baseSku.cost * 1.2)
           : 45000;
 
         set(() => ({
@@ -267,6 +262,10 @@ export const useEditorStore = create<EditorStore>()(
       },
 
       uploadDesign: async (file) => {
+        if (get().isUploadLocked) {
+          console.warn("Design upload is locked while editing a listing.");
+          return;
+        }
         const state = get();
         const { currentViewId } = state;
 
@@ -442,10 +441,15 @@ export const useEditorStore = create<EditorStore>()(
 
           if (isSelected) {
             // Remove color
-            newSelectedColors = state.selectedColors.filter(id => id !== colorId);
-            
+            newSelectedColors = state.selectedColors.filter(
+              (id) => id !== colorId,
+            );
+
             // If we're removing the featured color, set featured to first remaining color
-            if (state.featuredColorId === colorId && newSelectedColors.length > 0) {
+            if (
+              state.featuredColorId === colorId &&
+              newSelectedColors.length > 0
+            ) {
               newFeaturedColorId = newSelectedColors[0];
             } else if (newSelectedColors.length === 0) {
               newFeaturedColorId = null;
@@ -454,7 +458,7 @@ export const useEditorStore = create<EditorStore>()(
             // Add color (up to 5 max)
             if (state.selectedColors.length < 5) {
               newSelectedColors = [...state.selectedColors, colorId];
-              
+
               // If no featured color set, make this the featured color
               if (!state.featuredColorId) {
                 newFeaturedColorId = colorId;
@@ -484,42 +488,52 @@ export const useEditorStore = create<EditorStore>()(
         }));
       },
 
-      // ===== PLACEMENT MANAGEMENT ACTIONS =====
+      setUploadLocked: (locked: boolean) => {
+        set(() => ({ isUploadLocked: locked }));
+      },
 
+      // ===== PLACEMENT MANAGEMENT ACTIONS =====
       /**
        * Convert current design placement to normalized coordinates (0-1 range).
        * Returns null if no design is present or data is incomplete.
        */
+
       getCurrentNormalizedPlacement: () => {
-        const { designsByView, currentViewId, fileStore } = get();
+        const { designsByView, currentViewId, stageSize } = get();
         const currentView = getCurrentViewFromState(get());
         const printArea = currentView?.printArea;
         const designState = designsByView[currentViewId];
-        
-        if (!designState?.fileId || !printArea || !currentView) {
+
+        if (
+          !designState?.fileId ||
+          !designState.attrs ||
+          !printArea ||
+          !currentView
+        ) {
           return null;
         }
-        
-        const { attrs } = designState;
-        
-        // Convert source coordinates to print area relative coordinates
-        const xPercent = clamp((attrs.x - printArea.x_px) / printArea.width_px, 0, 1);
-        const yPercent = clamp((attrs.y - printArea.y_px) / printArea.height_px, 0, 1);
-        const widthPercent = clamp(attrs.width / printArea.width_px, 0, 1);
-        const heightPercent = clamp(attrs.height / printArea.height_px, 0, 1);
-        
-        // Calculate physical dimensions
-        const physicalWidthInches = attrs.width / printArea.dpi;
-        const physicalHeightInches = attrs.height / printArea.dpi;
-        
+
+        // Convert canvas coordinates to source coordinates
+        const stageToSourceScale = currentView.sourceWidthPx / stageSize.width;
+        const sourceX = designState.attrs.x * stageToSourceScale;
+        const sourceY = designState.attrs.y * stageToSourceScale;
+        const sourceWidth = designState.attrs.width * stageToSourceScale;
+        const sourceHeight = designState.attrs.height * stageToSourceScale;
+
+        // Normalize against print area (0-1 coordinates relative to print area)
+        const xPercent = (sourceX - printArea.x_px) / printArea.width_px;
+        const yPercent = (sourceY - printArea.y_px) / printArea.height_px;
+        const widthPercent = sourceWidth / printArea.width_px;
+        const heightPercent = sourceHeight / printArea.height_px;
+
         return {
-          xPercent,
-          yPercent,
-          widthPercent,
-          heightPercent,
-          rotation: attrs.rotation,
-          physicalWidthInches,
-          physicalHeightInches,
+          xPercent: Math.max(0, Math.min(1, xPercent)), // Clamp to 0-1
+          yPercent: Math.max(0, Math.min(1, yPercent)),
+          widthPercent: Math.max(0, Math.min(1, widthPercent)),
+          heightPercent: Math.max(0, Math.min(1, heightPercent)),
+          rotation: designState.attrs.rotation,
+          physicalWidthInches: sourceWidth / printArea.dpi,
+          physicalHeightInches: sourceHeight / printArea.dpi,
         };
       },
 
@@ -530,15 +544,17 @@ export const useEditorStore = create<EditorStore>()(
       applyNormalizedPlacement: (placement: NormalizedPlacement) => {
         const currentView = getCurrentViewFromState(get());
         const printArea = currentView?.printArea;
-        
+
         if (!printArea) return;
-        
+
         // Convert normalized placement back to source coordinates
-        const sourceX = printArea.x_px + (placement.xPercent * printArea.width_px);
-        const sourceY = printArea.y_px + (placement.yPercent * printArea.height_px);
+        const sourceX =
+          printArea.x_px + placement.xPercent * printArea.width_px;
+        const sourceY =
+          printArea.y_px + placement.yPercent * printArea.height_px;
         const sourceWidth = placement.widthPercent * printArea.width_px;
         const sourceHeight = placement.heightPercent * printArea.height_px;
-        
+
         get().updateDesignAttributes({
           x: sourceX,
           y: sourceY,
@@ -555,16 +571,25 @@ export const useEditorStore = create<EditorStore>()(
       getPublishingData: () => {
         const { designsByView, currentViewId, fileStore } = get();
         const designState = designsByView[currentViewId];
-        
+
         if (!designState?.fileId) {
           return null;
         }
-        
+
         const file = fileStore.get(designState.fileId) || null;
         const placement = get().getCurrentNormalizedPlacement();
-        
+
         return { file, placement };
       },
+
+      getCurrentDesignFileId: () => {
+        const { designsByView, currentViewId } = get();
+        return designsByView[currentViewId]?.fileId ?? null;
+      },
+
+      /**
+       * Adds a product to the listing if not already present (max 15).
+       */
 
       resetEditor: () => {
         set(() => ({
@@ -577,6 +602,7 @@ export const useEditorStore = create<EditorStore>()(
           currentProductColorId: null,
           customerPrice: 45000, // Reset to fallback default price (will be recalculated on next initialization)
           fileStore: new Map(),
+          selectedProducts: [],
         }));
       },
     }),

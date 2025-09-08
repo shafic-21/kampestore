@@ -28,6 +28,8 @@ import type { EditorData } from "@/features/creators/types/canvas.types";
 import { useShallow } from "zustand/react/shallow";
 import { EditorColorSwitcher } from "./editor-color-switcher";
 import { Button } from "@/components/ui/button";
+import { useListingStore } from "@/features/creators/store/listing-store";
+import { useRouter } from "next/navigation";
 
 /**
  * ProductEditor Component - Full Viewport with Centered Mockup
@@ -347,6 +349,43 @@ const ProductEditor = () => {
     setDesignSelection(true);
   }, [setDesignSelection]);
 
+  // ===== CONTINUE HANDLER =====
+  const router = useRouter();
+  const setUploadLocked = useEditorStore((s) => s.setUploadLocked);
+  const handleContinue = useCallback(() => {
+    const es = useEditorStore.getState();
+    const ls = useListingStore.getState();
+
+    const publishing = es.getPublishingData();
+    const designFileId = es.getCurrentDesignFileId();
+    const ed = es.editorData;
+    if (!publishing?.placement || !designFileId || !ed) return;
+
+    if (!es.selectedColors.length) {
+      alert("Please select at least one product color before continuing.");
+      return;
+    }
+    const baseCost = Number(ed.baseSku.cost || 0);
+    const price = Number(es.customerPrice || 0);
+    if (price < baseCost) {
+      alert("Price cannot be below base cost.");
+      return;
+    }
+
+    const masterProduct = {
+      baseSkuId: ed.baseSku.id,
+      baseCost,
+      price,
+      selectedColors: es.selectedColors,
+      featuredColorId: es.featuredColorId || es.selectedColors[0],
+      placement: publishing.placement,
+    };
+
+    const newListingId = ls.createListing(masterProduct, designFileId);
+    setUploadLocked(true);
+    router.push(`/editor/listing?id=${newListingId}`);
+  }, [setUploadLocked, router]);
+
   // ===== EARLY RETURN FOR LOADING =====
   if (!editorData || !currentView) {
     return (
@@ -367,7 +406,7 @@ const ProductEditor = () => {
             image: designImage,
           }}
         />
-        <Button size="lg">Continue</Button>
+        <Button size="lg" onClick={handleContinue}>Continue</Button>
       </div>
       {/* Hidden file input */}
       <input
