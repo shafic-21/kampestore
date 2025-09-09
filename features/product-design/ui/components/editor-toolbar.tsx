@@ -39,13 +39,14 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
   const [listingId] = useQueryState("listingId", parseAsString.withDefault(""));
 
   // ===== STORE SELECTORS =====
-  const { currentBaseSkuId, currentDesign, currentProductColorId, previews } =
+  const { currentBaseSkuId, currentDesign, currentProductColorId, previews, currentDesigns } =
     useProductDesignStore(
       useShallow((state) => ({
         currentBaseSkuId: state.editor.currentBaseSkuId,
         currentDesign: state.editor.currentDesigns[editorView],
         currentProductColorId: state.editor.currentProductColorId,
         previews: state.editor.previews,
+        currentDesigns: state.editor.currentDesigns,
       })),
     );
 
@@ -70,6 +71,10 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
 
   // ===== EVENT HANDLERS =====
   const handleViewChange = (viewCode: "front" | "back") => {
+    // In preview mode, prevent switching to views without designs
+    if (editorMode === "preview" && !currentDesigns[viewCode]) {
+      return;
+    }
     setEditorView(viewCode);
   };
 
@@ -133,26 +138,35 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
           </PopoverTrigger>
           <PopoverContent className="w-fit p-2">
             <ul className="flex flex-col gap-1">
-              {views.map((view) => (
-                <li key={view.id}>
-                  <Button
-                    variant="ghost"
-                    className={cn(
-                      "w-full justify-start flex items-center gap-2",
-                      editorView === view.code && "bg-accent",
-                    )}
-                    onClick={() => {
-                      handleViewChange(view.code as "front" | "back");
-                      setIsViewPopoverOpen(false);
-                    }}
-                  >
-                    <span>{view.displayName}</span>
-                    {editorView === view.code && (
-                      <CheckIcon className="size-3 ml-auto" />
-                    )}
-                  </Button>
-                </li>
-              ))}
+              {views.map((view) => {
+                const hasViewDesign = Boolean(currentDesigns[view.code]);
+                const isDisabled = editorMode === "preview" && !hasViewDesign;
+                
+                return (
+                  <li key={view.id}>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "w-full justify-start flex items-center gap-2",
+                        editorView === view.code && "bg-accent",
+                        isDisabled && "opacity-50 cursor-not-allowed",
+                      )}
+                      onClick={() => {
+                        if (!isDisabled) {
+                          handleViewChange(view.code as "front" | "back");
+                          setIsViewPopoverOpen(false);
+                        }
+                      }}
+                      disabled={isDisabled}
+                    >
+                      <span>{view.displayName}</span>
+                      {editorView === view.code && (
+                        <CheckIcon className="size-3 ml-auto" />
+                      )}
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           </PopoverContent>
         </Popover>
