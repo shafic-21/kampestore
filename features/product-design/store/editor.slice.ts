@@ -1,15 +1,19 @@
 import { v4 as uuidv4 } from "uuid";
-import type { EditorSliceCreator } from "../types/store.types";
+import type {
+  EditorSliceCreator,
+  NormalizedPlacement,
+} from "../types/store.types";
 import { trpcClient } from "@/trpc/client";
-import { deleteR2File } from "@/lib/r2";
+import { deleteR2File, extractKeyFromPublicUrl } from "@/lib/r2";
 
 export const createEditorSlice: EditorSliceCreator = (set, get) => ({
   editor: {
     sessionId: null,
     currentBaseSkuId: null,
     stageSize: { width: 600, height: 600 },
-    currentDesign: null,
+    currentDesigns: {},
     previews: {},
+    previewStates: {},
     selectedColors: [],
     featuredColorId: null,
     currentProductColorId: null,
@@ -54,9 +58,8 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
     get().calculatePrintQuality();
   },
 
-  uploadDesign: async (file) => {
+  uploadDesign: async (viewCode, file) => {
     const currentBaseSkuId = get().editor.currentBaseSkuId;
-
     try {
       // Upload file to R2
       const formData = new FormData();
@@ -64,25 +67,19 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
       formData.append("bucket", "PUBLIC");
       formData.append("prefix", "DESIGNS");
       formData.append("userId", get().editor.sessionId || "anonymous");
-
       const uploadResponse = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       });
-
       if (!uploadResponse.ok) {
         throw new Error("Failed to upload design to R2");
       }
-
       const uploadResult = await uploadResponse.json();
-
       if (!uploadResult.success) {
         throw new Error(uploadResult.error || "Upload failed");
       }
-
       console.log("UPLOAD", uploadResult);
       const designR2Key = uploadResult.data.key;
-
       // Extract colors and dimensions using server-side tRPC procedure
       const {
         colorProfile,
@@ -91,18 +88,14 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
       } = await trpcClient.productDesign.mockup.extractColorsAndSize.mutate({
         designR2Key,
       });
-
       if (!currentBaseSkuId) {
         throw new Error("Base not found");
       }
-
       const product = get().bases.catalog[currentBaseSkuId];
-      const currentView = Object.values(product.views)[0];
+      const currentView = product.views[viewCode as "front" | "back"];
       const printArea = currentView.printArea;
-
       const initialWidth = printArea.width_px * 0.5;
       const initialHeight = (initialWidth / originalWidth) * originalHeight;
-
       const currentDesign = {
         left: 0,
         top: 0,
@@ -121,9 +114,22 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
       set((state) => ({
         editor: {
           ...state.editor,
-          currentDesign,
-          //We reset the preview cache
-          previews: {},
+          currentDesigns: {
+            // Changed from currentDesign
+            ...state.editor.currentDesigns,
+            [viewCode]: currentDesign, // Set design for specific view
+          },
+          // Clear previews only for this view
+          previews: Object.fromEntries(
+            Object.entries(state.editor.previews).filter(
+              ([key]) => !key.startsWith(`${viewCode}_`),
+            ),
+          ),
+          previewStates: Object.fromEntries(
+            Object.entries(state.editor.previewStates).filter(
+              ([key]) => !key.startsWith(`${viewCode}_`),
+            ),
+          ),
         },
       }));
     } catch (error) {
@@ -134,37 +140,56 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
     }
   },
 
-  updateDesignAttributes: (attrs) => {
+  updateDesignAttributes: (
+    viewCode: string,
+    attrs: Partial<NormalizedPlacement>,
+  ) => {
     set((state) => {
-      if (!state.editor.currentDesign) return state;
+      const currentDesign = state.editor.currentDesigns[viewCode];
+      if (!currentDesign) return state;
 
       return {
         editor: {
           ...state.editor,
-          currentDesign: {
-            ...state.editor.currentDesign,
-            ...attrs,
+          currentDesigns: {
+            ...state.editor.currentDesigns,
+            [viewCode]: {
+              ...currentDesign,
+              ...attrs,
+            },
           },
         },
       };
     });
   },
 
-  deleteDesign: () => {
-    const currentDesign = get().editor.currentDesign;
-
+  deleteDesign: (viewCode: string) => {
+    const currentDesign = get().editor.currentDesigns[viewCode];
     if (!currentDesign) return;
 
     set((state) => ({
       editor: {
         ...state.editor,
-        currentDesign: null,
-        previews: {},
+        currentDesigns: {
+          ...state.editor.currentDesigns,
+          [viewCode]: null,
+        },
+        // Clear previews only for this view
+        previews: Object.fromEntries(
+          Object.entries(state.editor.previews).filter(
+            ([key]) => !key.startsWith(`${viewCode}_`),
+          ),
+        ),
+        previewStates: Object.fromEntries(
+          Object.entries(state.editor.previewStates).filter(
+            ([key]) => !key.startsWith(`${viewCode}_`),
+          ),
+        ),
       },
     }));
 
-    if (currentDesign?.designR2Key) {
-      deleteR2File("PUBLIC", currentDesign?.designR2Key);
+    if (currentDesign.designR2Key) {
+      deleteR2File("PRIVATE", currentDesign.designR2Key);
     }
   },
 
@@ -185,6 +210,7 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
         currentBaseSkuId: null,
         currentDesign: null,
         previews: {},
+        previewStates: {},
         selectedColors: [],
         featuredColorId: null,
         currentProductColorId: null,
@@ -239,9 +265,10 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
     set((state) => ({ editor: { ...state.editor, customerPrice: price } }));
   },
 
-  getCurrentNormalizedPlacement: () => {
-    const currentDesign = get().editor.currentDesign;
+  getCurrentNormalizedPlacement: (viewCode: string) => {
+    const currentDesign = get().editor.currentDesigns[viewCode];
     if (!currentDesign) return null;
+
     return {
       left: currentDesign.left,
       top: currentDesign.top,
@@ -253,23 +280,256 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
     };
   },
 
-  applyNormalizedPlacement: (placement) => {
-    get().updateDesignAttributes(placement);
+  applyNormalizedPlacement: (
+    viewCode: string,
+    placement: NormalizedPlacement,
+  ) => {
+    get().updateDesignAttributes(viewCode, placement);
   },
 
   getPublishingData: () => {
     const state = get();
-    const currentDesign = get().editor.currentDesign;
-    if (!currentDesign) return null;
+    const currentDesigns = state.editor.currentDesigns;
 
-    const placement = state.getCurrentNormalizedPlacement();
+    const publishingData: Record<
+      string,
+      { designR2Key: string; placement: NormalizedPlacement }
+    > = {};
 
-    // Return imageUrl instead of file
-    return currentDesign && placement
-      ? {
-          designR2Key: currentDesign.designR2Key, // Changed from file
-          placement,
+    for (const [viewCode, design] of Object.entries(currentDesigns)) {
+      if (!design) continue;
+
+      const placement = state.getCurrentNormalizedPlacement(viewCode);
+      if (!placement) continue;
+
+      publishingData[viewCode] = {
+        designR2Key: design.designR2Key,
+        placement,
+      };
+    }
+
+    return Object.keys(publishingData).length > 0 ? publishingData : null;
+  },
+
+  // ===== PREVIEW MANAGEMENT ACTIONS =====
+
+  isCacheValid: (viewCode: string, colorId: string) => {
+    const state = get();
+    const cacheKey = `${viewCode}_${colorId}`;
+    const cachedState = state.editor.previewStates[cacheKey];
+    const currentDesign = state.editor.currentDesigns[viewCode];
+
+    if (!cachedState || !currentDesign) return false;
+
+    const currentPlacement = state.getCurrentNormalizedPlacement(viewCode);
+    if (!currentPlacement) return false;
+
+    return (
+      cachedState.designR2Key === currentDesign.designR2Key &&
+      cachedState.placement.left === currentPlacement.left &&
+      cachedState.placement.top === currentPlacement.top &&
+      cachedState.placement.width === currentPlacement.width &&
+      cachedState.placement.height === currentPlacement.height &&
+      cachedState.placement.rotation === currentPlacement.rotation &&
+      cachedState.placement.relativeMidXOffset ===
+        currentPlacement.relativeMidXOffset &&
+      cachedState.placement.relativeMidYOffset ===
+        currentPlacement.relativeMidYOffset
+    );
+  },
+
+  generatePreview: async (
+    viewCode: string,
+    colorId: string,
+    forceRegenerate = false,
+  ) => {
+    const state = get();
+    const currentDesign = state.editor.currentDesigns[viewCode];
+    const currentBaseSkuId = state.editor.currentBaseSkuId;
+
+    // Guard: No design uploaded for this view
+    if (!currentDesign) {
+      console.warn(
+        `No design uploaded for ${viewCode} view - cannot generate preview`,
+      );
+      return;
+    }
+
+    // Guard: No base product selected
+    if (!currentBaseSkuId) {
+      console.warn("No base product selected - cannot generate preview");
+      return;
+    }
+
+    const cacheKey = `${viewCode}_${colorId}`;
+    const hasCache = Boolean(state.editor.previews[cacheKey]);
+    const isValid = hasCache && state.isCacheValid(viewCode, colorId);
+
+    // SHOW STALE IMMEDIATELY: If cache exists, we're done for immediate display
+    if (hasCache && !forceRegenerate) {
+      if (isValid) {
+        console.log(`Using valid cached preview for ${cacheKey}`);
+        return;
+      } else {
+        console.log(
+          `Showing stale preview for ${cacheKey}, regenerating in background...`,
+        );
+      }
+    }
+
+    // BACKGROUND REGENERATION: Generate fresh preview
+    try {
+      const base = state.bases.catalog[currentBaseSkuId];
+      if (!base) throw new Error("Base product not found in catalog");
+
+      const view = base.views[viewCode as keyof typeof base.views];
+      if (!view) throw new Error(`View ${viewCode} not found`);
+
+      const color = base.colors[colorId];
+      if (!color) throw new Error(`Color ${colorId} not found`);
+
+      const currentPlacement = state.getCurrentNormalizedPlacement(viewCode);
+      if (!currentPlacement) throw new Error("Current placement not available");
+
+      console.log(
+        `${hasCache ? "Regenerating stale" : "Generating new"} preview for ${cacheKey}`,
+      );
+
+      // Generate mockup using tRPC
+      const result =
+        await trpcClient.productDesign.mockup.generateMockup.mutate({
+          designR2Key: currentDesign.designR2Key,
+          templateR2Key: extractKeyFromPublicUrl(view.template.url),
+          backgroundColor: color.hexValue,
+          templateSize: {
+            width: view.template.sourceWidthPx,
+            height: view.template.sourceHeightPx,
+          },
+          printArea: view.printArea,
+          placement: currentPlacement,
+          outputFormat: "png",
+          quality: 90,
+        });
+
+      // Convert base64 to blob URL
+      const base64Data = result.mockupData;
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: result.contentType });
+      const blobUrl = URL.createObjectURL(blob);
+
+      // SEAMLESS SWAP: Replace old preview with new one
+      set((state) => {
+        const newPreviews = { ...state.editor.previews };
+        const newPreviewStates = { ...state.editor.previewStates };
+
+        // Clean up old blob URL if it exists
+        const oldPreview = newPreviews[cacheKey];
+        if (oldPreview && oldPreview.startsWith("blob:")) {
+          URL.revokeObjectURL(oldPreview);
         }
-      : null;
+
+        // Add new preview
+        newPreviews[cacheKey] = blobUrl;
+        newPreviewStates[cacheKey] = {
+          designR2Key: currentDesign.designR2Key,
+          placement: currentPlacement,
+          generatedAt: Date.now(),
+        };
+
+        // LRU cache management
+        const previewKeys = Object.keys(newPreviews);
+        if (previewKeys.length > 10) {
+          const oldestKey = previewKeys.sort((a, b) => {
+            const aTime = newPreviewStates[a]?.generatedAt || 0;
+            const bTime = newPreviewStates[b]?.generatedAt || 0;
+            return aTime - bTime;
+          })[0];
+
+          if (oldestKey && oldestKey !== cacheKey) {
+            if (newPreviews[oldestKey]?.startsWith("blob:")) {
+              URL.revokeObjectURL(newPreviews[oldestKey]);
+            }
+            delete newPreviews[oldestKey];
+            delete newPreviewStates[oldestKey];
+          }
+        }
+
+        return {
+          editor: {
+            ...state.editor,
+            previews: newPreviews,
+            previewStates: newPreviewStates,
+          },
+        };
+      });
+
+      console.log(
+        `Preview ${hasCache ? "regenerated" : "generated"} and seamlessly swapped for ${cacheKey}`,
+      );
+    } catch (error) {
+      console.error(
+        `Failed to ${hasCache ? "regenerate" : "generate"} preview for ${cacheKey}:`,
+        error,
+      );
+      throw error;
+    }
+  },
+
+  hasPreview: (viewCode: string, colorId: string) => {
+    const cacheKey = `${viewCode}_${colorId}`;
+    return Boolean(get().editor.previews[cacheKey]);
+  },
+
+  getPreview: (viewCode: string, colorId: string) => {
+    const cacheKey = `${viewCode}_${colorId}`;
+    return get().editor.previews[cacheKey] || null;
+  },
+
+  clearAllPreviews: () => {
+    const state = get();
+
+    // Clean up blob URLs
+    Object.values(state.editor.previews).forEach((url) => {
+      if (url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
+
+    set((state) => ({
+      editor: {
+        ...state.editor,
+        previews: {},
+        previewStates: {},
+      },
+    }));
+  },
+
+  clearPreviewsForColor: (colorId: string) => {
+    const state = get();
+    const newPreviews = { ...state.editor.previews };
+    const newPreviewStates = { ...state.editor.previewStates };
+
+    // Find and remove previews for this color
+    Object.keys(newPreviews).forEach((key) => {
+      if (key.endsWith(`_${colorId}`)) {
+        if (newPreviews[key].startsWith("blob:")) {
+          URL.revokeObjectURL(newPreviews[key]);
+        }
+        delete newPreviews[key];
+        delete newPreviewStates[key];
+      }
+    });
+
+    set((state) => ({
+      editor: {
+        ...state.editor,
+        previews: newPreviews,
+        previewStates: newPreviewStates,
+      },
+    }));
   },
 });

@@ -3,16 +3,35 @@ import { useMemo } from "react";
 import { useProductDesignStore } from "../../store";
 import { createColorMap } from "../../utils";
 import { useShallow } from "zustand/react/shallow";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
+import { usePreviewGenerator } from "../../hooks/use-preview-generator";
 
 export const EditorColorSwitcher = ({}) => {
-  const { currentBaseSkuId, selectedColors, currentProductColorId } =
-    useProductDesignStore(
-      useShallow((state) => ({
-        currentBaseSkuId: state.editor.currentBaseSkuId,
-        selectedColors: state.editor.selectedColors,
-        currentProductColorId: state.editor.currentProductColorId,
-      })),
-    );
+  // ===== URL STATE =====
+  const [editorMode] = useQueryState(
+    "mode",
+    parseAsStringLiteral(["design", "preview"]).withDefault("design"),
+  );
+
+  const [editorView] = useQueryState(
+    "view",
+    parseAsStringLiteral(["front", "back"]).withDefault("front"),
+  );
+
+  // ===== STORE SELECTORS =====
+  const {
+    currentBaseSkuId,
+    selectedColors,
+    currentProductColorId,
+    currentDesign,
+  } = useProductDesignStore(
+    useShallow((state) => ({
+      currentBaseSkuId: state.editor.currentBaseSkuId,
+      selectedColors: state.editor.selectedColors,
+      currentProductColorId: state.editor.currentProductColorId,
+      currentDesign: state.editor.currentDesigns[editorView], // Changed this line
+    })),
+  );
 
   const setCurrentProductColor = useProductDesignStore(
     (state) => state.setCurrentProductColor,
@@ -22,6 +41,10 @@ export const EditorColorSwitcher = ({}) => {
     currentBaseSkuId ? state.bases.catalog[currentBaseSkuId] : null,
   );
 
+  // ===== PREVIEW GENERATOR =====
+  const { handleGeneratePreview, isGenerating } = usePreviewGenerator();
+
+  // ===== COMPUTED VALUES =====
   const availableColors = useMemo(
     () => (base?.colors ? Object.values(base.colors) : []),
     [base?.colors],
@@ -29,8 +52,18 @@ export const EditorColorSwitcher = ({}) => {
 
   const colorMap = createColorMap(availableColors);
 
-  const handleColorSelect = (colorId: string) => {
+  // ===== EVENT HANDLERS =====
+  const handleColorSelect = async (colorId: string) => {
     setCurrentProductColor(colorId);
+
+    // If in preview mode and has design, regenerate preview for new color
+    if (editorMode === "preview" && currentDesign) {
+      try {
+        await handleGeneratePreview(editorView, colorId);
+      } catch (error) {
+        console.error("Failed to generate preview for color switch:", error);
+      }
+    }
   };
 
   return (
@@ -41,8 +74,9 @@ export const EditorColorSwitcher = ({}) => {
           color={colorMap[colorId]}
           size="lg"
           isSelected={currentProductColorId === colorId}
-          isSelectable={true}
+          isSelectable={!isGenerating}
           onSelect={handleColorSelect}
+          className={isGenerating ? "cursor-wait" : undefined}
         />
       ))}
     </div>

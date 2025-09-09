@@ -18,6 +18,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { useProductDesignStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
+import { usePreviewGenerator } from "../../hooks/use-preview-generator";
 
 interface Props {
   handleDesignUpload: () => void;
@@ -38,12 +39,14 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
   const [listingId] = useQueryState("listingId", parseAsString.withDefault(""));
 
   // ===== STORE SELECTORS =====
-  const { currentBaseSkuId, currentDesign } = useProductDesignStore(
-    useShallow((state) => ({
-      currentBaseSkuId: state.editor.currentBaseSkuId,
-      currentDesign: state.editor.currentDesign,
-    })),
-  );
+  const { currentBaseSkuId, currentDesign, currentProductColorId } =
+    useProductDesignStore(
+      useShallow((state) => ({
+        currentBaseSkuId: state.editor.currentBaseSkuId,
+        currentDesign: state.editor.currentDesigns[editorView],
+        currentProductColorId: state.editor.currentProductColorId,
+      })),
+    );
 
   // Get cached product data
   const base = useProductDesignStore(
@@ -52,6 +55,10 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
 
   // ===== LOCAL STATE =====
   const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
+
+  // ===== PREVIEW GENERATOR =====
+  const { handleGeneratePreview, isGenerating, generationError } =
+    usePreviewGenerator();
 
   // ===== COMPUTED VALUES =====
   const views = base?.views ? Object.values(base.views) : [];
@@ -63,6 +70,21 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
   // ===== EVENT HANDLERS =====
   const handleViewChange = (viewCode: "front" | "back") => {
     setEditorView(viewCode);
+  };
+
+  const handlePreviewClick = async () => {
+    if (!hasDesign || !currentProductColorId) {
+      setEditorMode("preview");
+      return;
+    }
+
+    // ✅ IMMEDIATE SWITCH: Show preview mode instantly
+    setEditorMode("preview");
+
+    // ✅ NON-BLOCKING: Start background generation (don't await)
+    handleGeneratePreview(editorView, currentProductColorId).catch((error) => {
+      console.error("Background preview generation failed:", error);
+    });
   };
 
   // ===== EARLY RETURN FOR LOADING =====
@@ -150,10 +172,11 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
                 "hover:bg-foreground hover:text-background",
               ],
             )}
-            onClick={() => setEditorMode("preview")}
+            onClick={handlePreviewClick}
+            disabled={isGenerating || !hasDesign}
           >
             <Eye className="size-3 mr-2" />
-            Preview
+            {isGenerating ? "Generating..." : "Preview"}
           </Button>
         </div>
       </div>

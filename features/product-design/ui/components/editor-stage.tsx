@@ -16,9 +16,16 @@ import { getPublicUrl } from "@/lib/r2";
 type Props = {
   currentViewCode: "front" | "back";
   isDesignMode: boolean;
+  templateEl?: HTMLImageElement | null;
+  mockupLoaded: boolean;
 };
 
-export const EditorStage = ({ currentViewCode, isDesignMode }: Props) => {
+export const EditorStage = ({
+  currentViewCode,
+  isDesignMode,
+  templateEl,
+  mockupLoaded,
+}: Props) => {
   const designRef = useRef<Konva.Image>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
 
@@ -27,7 +34,7 @@ export const EditorStage = ({ currentViewCode, isDesignMode }: Props) => {
     useProductDesignStore(
       useShallow((state) => ({
         currentBaseSkuId: state.editor.currentBaseSkuId,
-        currentDesign: state.editor.currentDesign,
+        currentDesign: state.editor.currentDesigns[currentViewCode], // Changed this line
         stageSize: state.editor.stageSize,
         currentProductColorId: state.editor.currentProductColorId,
       })),
@@ -54,7 +61,7 @@ export const EditorStage = ({ currentViewCode, isDesignMode }: Props) => {
   const [designImage] = useImage(
     currentDesign?.designR2Key ? getPublicUrl(currentDesign.designR2Key) : "",
   );
-  const [mockupImage] = useImage(currentView?.template?.url || "");
+  const mockupImage = templateEl || null;
 
   // ===== TRANSFORMER SYNC =====
   useEffect(() => {
@@ -86,12 +93,13 @@ export const EditorStage = ({ currentViewCode, isDesignMode }: Props) => {
       if (!currentDesign || !currentView) return;
       const node = e.target;
 
-      updateDesignAttributes({
+      updateDesignAttributes(currentViewCode, {
+        // Added currentViewCode parameter
         left: node.x() - currentView.printArea.x_px,
         top: node.y() - currentView.printArea.y_px,
       });
     },
-    [currentDesign, updateDesignAttributes, currentView],
+    [currentDesign, updateDesignAttributes, currentView, currentViewCode], // Added currentViewCode
   );
 
   const handleTransformEnd = useCallback(
@@ -107,7 +115,8 @@ export const EditorStage = ({ currentViewCode, isDesignMode }: Props) => {
       node.scaleX(1);
       node.scaleY(1);
 
-      updateDesignAttributes({
+      updateDesignAttributes(currentViewCode, {
+        // Added currentViewCode parameter
         left: node.x() - currentView.printArea.x_px,
         top: node.y() - currentView.printArea.y_px,
         width: Math.max(10, node.width() * scale),
@@ -115,7 +124,7 @@ export const EditorStage = ({ currentViewCode, isDesignMode }: Props) => {
         rotation: node.rotation(),
       });
     },
-    [currentDesign, updateDesignAttributes, currentView],
+    [currentDesign, updateDesignAttributes, currentView, currentViewCode], // Added currentViewCode
   );
 
   const handleDesignClick = useCallback(() => {
@@ -158,14 +167,16 @@ export const EditorStage = ({ currentViewCode, isDesignMode }: Props) => {
       <Layer>
         <Group x={0} y={0}>
           {/* Background Color */}
-          <Rect
-            x={0}
-            y={0}
-            width={sourceW}
-            height={sourceH}
-            fill={currentColor?.hexValue || "#F5F5DC"}
-            listening={false}
-          />
+          {mockupLoaded && (
+            <Rect
+              x={0}
+              y={0}
+              width={sourceW}
+              height={sourceH}
+              fill={currentColor?.hexValue || "#F5F5DC"}
+              listening={false}
+            />
+          )}
 
           {/* Mockup Template */}
           {mockupImage && (

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 import { useProductDesignStore } from "../../store";
+import { usePreviewGenerator } from "../../hooks/use-preview-generator";
+import useImage from "use-image";
 
 const ProductEditor = () => {
   // ===== URL STATE =====
@@ -27,7 +29,7 @@ const ProductEditor = () => {
   // ===== STORE SELECTORS =====
   const {
     currentBaseSkuId,
-    currentDesign,
+    currentDesign, // This line changes
     stageSize,
     selectedColors,
     generatedPreviews,
@@ -35,7 +37,7 @@ const ProductEditor = () => {
   } = useProductDesignStore(
     useShallow((state) => ({
       currentBaseSkuId: state.editor.currentBaseSkuId,
-      currentDesign: state.editor.currentDesign,
+      currentDesign: state.editor.currentDesigns[currentViewCode], // Changed this line
       stageSize: state.editor.stageSize,
       selectedColors: state.editor.selectedColors,
       currentProductColorId: state.editor.currentProductColorId,
@@ -47,6 +49,15 @@ const ProductEditor = () => {
   const base = useProductDesignStore(
     (state) => state.bases.catalog[currentBaseSkuId || ""],
   );
+
+  const currentView = base?.views?.[currentViewCode];
+
+  const [templateEl, templateStatus] = useImage(
+    currentView?.template?.url || "",
+  );
+
+  // ===== PREVIEW GENERATOR =====
+  const { isGenerating, generationError } = usePreviewGenerator();
 
   // ===== STORE ACTIONS =====
   const setStageSize = useProductDesignStore((state) => state.setStageSize);
@@ -101,17 +112,17 @@ const ProductEditor = () => {
         if (file) alert("Please select an image file");
         return;
       }
-
+  
       try {
-        await uploadDesign(file);
+        await uploadDesign(currentViewCode, file); // Added currentViewCode parameter
       } catch (error) {
         console.error("Upload failed:", error);
         alert("Failed to upload design. Please try again.");
       }
-
+  
       if (e.target) e.target.value = "";
     },
-    [uploadDesign],
+    [uploadDesign, currentViewCode], // Added currentViewCode to dependencies
   );
 
   const handleContinue = useCallback(() => {
@@ -167,14 +178,58 @@ const ProductEditor = () => {
           {editorMode === "preview" && (
             // Preview Mode: Show cached preview
             <div
-              className="relative"
+              className="relative flex items-center justify-center"
               style={{ width: stageSize.width, height: stageSize.height }}
             >
-              <img
-                src={previewImage}
-                alt="Product preview"
-                className="w-full h-full object-contain"
-              />
+              {isGenerating && (
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+                  <p className="text-sm text-muted-foreground">
+                    Generating preview...
+                  </p>
+                </div>
+              )}
+
+              {!isGenerating && generationError && (
+                <div className="flex flex-col items-center justify-center gap-4 text-center">
+                  <p className="text-sm text-destructive">
+                    Failed to generate preview
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {generationError}
+                  </p>
+                </div>
+              )}
+
+              {!isGenerating && !generationError && previewImage && (
+                <img
+                  src={previewImage}
+                  alt="Product preview"
+                  className="w-full h-full object-contain"
+                />
+              )}
+
+              {!isGenerating &&
+                !generationError &&
+                !previewImage &&
+                currentDesign && (
+                  <div className="flex flex-col items-center justify-center gap-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No preview available
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Click Preview to generate
+                    </p>
+                  </div>
+                )}
+
+              {!currentDesign && (
+                <div className="flex flex-col items-center justify-center gap-4 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Upload a design to see preview
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -182,6 +237,8 @@ const ProductEditor = () => {
             <EditorStage
               currentViewCode={currentViewCode}
               isDesignMode={editorMode === "design"}
+              templateEl={templateEl}
+              mockupLoaded={templateStatus === "loaded"}
             />
           )}
         </div>

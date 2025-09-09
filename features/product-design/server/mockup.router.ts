@@ -31,12 +31,10 @@ export const mockupGeneratorRouter = {
   generateMockup: publicProcedure
     .input(mockupInputSchema)
     .mutation(async ({ input }) => {
-      const designBuffer = await downloadFile("PUBLIC", input.designR2Key);
-      const templateBuffer = await downloadFile("PUBLIC", input.templateR2Key);
-
-      const result = await MockupGenerator.generateMockup({
-        designBuffer,
-        templateBuffer,
+      console.log('[MockupRouter] Starting single mockup generation');
+      console.log('[MockupRouter] Input:', {
+        designR2Key: input.designR2Key,
+        templateR2Key: input.templateR2Key,
         backgroundColor: input.backgroundColor,
         templateSize: input.templateSize,
         printArea: input.printArea,
@@ -44,11 +42,58 @@ export const mockupGeneratorRouter = {
         outputFormat: input.outputFormat,
         quality: input.quality,
       });
-      return {
-        mockupData: result.mockupBuffer.toString("base64"),
-        contentType: `image/${input.outputFormat}`,
-        metadata: result.metadata,
-      };
+
+      try {
+        // Download design file
+        console.log('[MockupRouter] Downloading design file:', input.designR2Key);
+        let designBuffer;
+        try {
+          designBuffer = await downloadFile("PUBLIC", input.designR2Key);
+          console.log('[MockupRouter] Design file downloaded successfully, size:', designBuffer.length);
+        } catch (error) {
+          console.error('[MockupRouter] Failed to download design file:', error);
+          throw new Error(`Failed to download design file: ${error.message}`);
+        }
+
+        // Download template file
+        console.log('[MockupRouter] Downloading template file:', input.templateR2Key);
+        let templateBuffer;
+        try {
+          templateBuffer = await downloadFile("PUBLIC", input.templateR2Key);
+          console.log('[MockupRouter] Template file downloaded successfully, size:', templateBuffer.length);
+        } catch (error) {
+          console.error('[MockupRouter] Failed to download template file:', error);
+          throw new Error(`Failed to download template file: ${error.message}`);
+        }
+
+        // Generate mockup
+        console.log('[MockupRouter] Calling MockupGenerator');
+        const result = await MockupGenerator.generateMockup({
+          designBuffer,
+          templateBuffer,
+          backgroundColor: input.backgroundColor,
+          templateSize: input.templateSize,
+          printArea: input.printArea,
+          placement: input.placement,
+          outputFormat: input.outputFormat,
+          quality: input.quality,
+        });
+
+        console.log('[MockupRouter] Mockup generated successfully');
+        const response = {
+          mockupData: result.mockupBuffer.toString("base64"),
+          contentType: `image/${input.outputFormat}`,
+          metadata: result.metadata,
+        };
+
+        console.log('[MockupRouter] Response prepared, base64 size:', response.mockupData.length);
+        return response;
+
+      } catch (error) {
+        console.error('[MockupRouter] Mockup generation failed:', error);
+        console.error('[MockupRouter] Error stack:', error.stack);
+        throw error;
+      }
     }),
 
   /**

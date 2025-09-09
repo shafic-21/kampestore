@@ -63,24 +63,35 @@ export interface EditorState {
     sessionId: string | null;
     currentBaseSkuId: string | null;
     stageSize: { width: number; height: number };
-    currentDesign: {
-      left: number;
-      top: number;
-      width: number;
-      height: number;
-      rotation: number;
-      relativeMidXOffset: number;
-      relativeMidYOffset: number;
-      designR2Key: string;
-      originalWidth: number;
-      originalHeight: number;
-      colorProfile: ColorProfile;
-      templateScaleFactor: number;
-      templatePPI: number;
-    } | null;
+    currentDesigns: Record<
+      string,
+      {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+        rotation: number;
+        relativeMidXOffset: number;
+        relativeMidYOffset: number;
+        designR2Key: string;
+        originalWidth: number;
+        originalHeight: number;
+        colorProfile: ColorProfile;
+        templateScaleFactor: number;
+        templatePPI: number;
+      } | null
+    >;
 
     //[view]_[colorId]:  "blob:..."
     previews: Record<string, string>;
+    previewStates: Record<
+      string,
+      {
+        designR2Key: string;
+        placement: NormalizedPlacement;
+        generatedAt: number;
+      }
+    >;
     selectedColors: string[];
     featuredColorId: string | null;
     currentProductColorId: string | null;
@@ -91,9 +102,12 @@ export interface EditorState {
 export interface EditorActions {
   initializeEditor: (baseSkuId: string) => void;
   setStageSize: (size: { width: number; height: number }) => void;
-  uploadDesign: (file: File) => Promise<void>;
-  updateDesignAttributes: (attrs: Partial<NormalizedPlacement>) => void;
-  deleteDesign: () => void;
+  uploadDesign: (viewCode: string, file: File) => Promise<void>;
+  updateDesignAttributes: (
+    viewCode: string,
+    attrs: Partial<NormalizedPlacement>,
+  ) => void;
+  deleteDesign: (viewCode: string) => void;
   calculatePrintQuality: () => void;
   resetEditor: () => void;
 
@@ -104,12 +118,22 @@ export interface EditorActions {
 
   setCustomerPrice: (price: number) => void;
 
-  getCurrentNormalizedPlacement: () => NormalizedPlacement | null;
-  applyNormalizedPlacement: (placement: NormalizedPlacement) => void;
-  getPublishingData: () => {
-    designR2Key: string;
-    placement: NormalizedPlacement | null;
-  } | null;
+  getCurrentNormalizedPlacement: (
+    viewCode: string,
+  ) => NormalizedPlacement | null;
+  applyNormalizedPlacement: (
+    viewCode: string,
+    placement: NormalizedPlacement,
+  ) => void;
+  getPublishingData: () => Record<
+    string,
+    { designR2Key: string; placement: NormalizedPlacement }
+  > | null;
+  // Preview management actions
+  generatePreview: (viewCode: string, colorId: string) => Promise<void>;
+  clearAllPreviews: () => void;
+  clearPreviewsForColor: (colorId: string) => void;
+  isCacheValid: (viewCode: string, colorId: string) => boolean;
 }
 
 export type EditorSlice = EditorState & EditorActions;

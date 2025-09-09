@@ -111,7 +111,106 @@ export class MockupGenerator {
       quality = 90,
     } = options;
 
-    // Create background layer
+    // Calculate design position within print area
+    const designX = Math.round(printArea.x_px + placement.left);
+    const designY = Math.round(printArea.y_px + placement.top);
+    const designWidth = Math.round(placement.width);
+    const designHeight = Math.round(placement.height);
+
+    // Get design metadata
+    const designMeta = await sharp(designBuffer).metadata();
+    if (!designMeta.width || !designMeta.height) {
+      throw new Error("Unable to read design dimensions");
+    }
+
+    const aspectRatio = designMeta.width / designMeta.height;
+    const targetAspectRatio = designWidth / designHeight;
+
+    let scaledWidth: number, scaledHeight: number;
+    let offsetX = 0,
+      offsetY = 0;
+
+    // Maintain aspect ratio
+    if (aspectRatio > targetAspectRatio) {
+      scaledWidth = designWidth;
+      scaledHeight = Math.round(designWidth / aspectRatio);
+      offsetY = Math.round((designHeight - scaledHeight) / 2);
+    } else {
+      scaledHeight = designHeight;
+      scaledWidth = Math.round(designHeight * aspectRatio);
+      offsetX = Math.round((designWidth - scaledWidth) / 2);
+    }
+
+    // Resize design
+    const scaledDesign = await sharp(designBuffer)
+      .resize(scaledWidth, scaledHeight, {
+        fit: "fill",
+        kernel: sharp.kernel.lanczos3,
+      })
+      .toBuffer();
+
+    // Apply rotation if needed
+    let finalDesign = scaledDesign;
+    if (placement.rotation !== 0) {
+      finalDesign = await sharp(scaledDesign)
+        .rotate(placement.rotation, {
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
+        .toBuffer();
+    }
+
+    // Get the actual dimensions of the final design after rotation
+    const finalDesignMeta = await sharp(finalDesign).metadata();
+    const finalDesignWidth = finalDesignMeta.width!;
+    const finalDesignHeight = finalDesignMeta.height!;
+
+    // Calculate the position where to place the design
+    const compositeX = Math.max(
+      0,
+      Math.min(designX + offsetX, templateSize.width),
+    );
+    const compositeY = Math.max(
+      0,
+      Math.min(designY + offsetY, templateSize.height),
+    );
+
+    // If design extends beyond canvas, we need to extract only the visible part
+    let visibleDesign = finalDesign;
+    if (
+      designX + offsetX < 0 ||
+      designY + offsetY < 0 ||
+      designX + offsetX + finalDesignWidth > templateSize.width ||
+      designY + offsetY + finalDesignHeight > templateSize.height
+    ) {
+      // Calculate the extraction region from the design
+      const extractX = Math.max(0, -(designX + offsetX));
+      const extractY = Math.max(0, -(designY + offsetY));
+      const extractWidth = Math.min(
+        finalDesignWidth - extractX,
+        templateSize.width - Math.max(0, designX + offsetX),
+      );
+      const extractHeight = Math.min(
+        finalDesignHeight - extractY,
+        templateSize.height - Math.max(0, designY + offsetY),
+      );
+
+      // Extract only the visible portion of the design
+      if (extractWidth > 0 && extractHeight > 0) {
+        visibleDesign = await sharp(finalDesign)
+          .extract({
+            left: extractX,
+            top: extractY,
+            width: extractWidth,
+            height: extractHeight,
+          })
+          .toBuffer();
+      } else {
+        // Design is completely outside visible area
+        visibleDesign = Buffer.from([]);
+      }
+    }
+
+    // Create background
     const background = await sharp({
       create: {
         width: templateSize.width,
@@ -123,169 +222,104 @@ export class MockupGenerator {
       .png()
       .toBuffer();
 
-    // Calculate design position within print area
-    // NormalizedPlacement uses absolute coordinates within the print area
-    const designX = printArea.x_px + placement.left;
-    const designY = printArea.y_px + placement.top;
-    const designWidth = placement.width;
-    const designHeight = placement.height;
+    // Build composite operations array
+    const compositeOps = [];
 
-    // Validate design stays within print area bounds
-    const exceedsBounds =
-      designX < printArea.x_px ||
-      designY < printArea.y_px ||
-      designX + designWidth > printArea.x_px + printArea.width_px ||
-      designY + designHeight > printArea.y_px + printArea.height_px;
+    // Add design if it's visible
+    if (visibleDesign.length > 0) {
+      // Check if we need to clip to print area
+      const needsClipping =
+        compositeX < printArea.x_px ||
+        compositeY < printArea.y_px ||
+        compositeX + finalDesignWidth > printArea.x_px + printArea.width_px ||
+        compositeY + finalDesignHeight > printArea.y_px + printArea.height_px;
 
-    if (exceedsBounds) {
-      console.warn("Design extends beyond print area, will be clipped");
+      if (needsClipping) {
+        // Create a clipped version using mask
+        const maskSvg = Buffer.from(
+          `<svg width="${templateSize.width}" height="${templateSize.height}">
+             <rect x="${printArea.x_px}" y="${printArea.y_px}"
+                   width="${printArea.width_px}" height="${printArea.height_px}"
+                   fill="white"/>
+           </svg>`,
+        );
+
+        // First add the design
+        const withDesign = await sharp(background)
+          .composite([
+            {
+              input: visibleDesign,
+              left: compositeX,
+              top: compositeY,
+              blend: "over",
+            },
+          ])
+          .png()
+          .toBuffer();
+
+        // Then apply mask to clip to print area
+        const clipped = await sharp(withDesign)
+          .composite([
+            {
+              input: maskSvg,
+              blend: "dest-in",
+            },
+          ])
+          .png()
+          .toBuffer();
+
+        // Final composite with template
+        const finalComposite = await sharp(background)
+          .composite([
+            {
+              input: clipped,
+              left: 0,
+              top: 0,
+              blend: "over",
+            },
+            {
+              input: templateBuffer,
+              left: 0,
+              top: 0,
+              blend: "over",
+            },
+          ])
+          [outputFormat]({ quality })
+          .toBuffer();
+
+        const metadata = await sharp(finalComposite).metadata();
+        return {
+          mockupBuffer: finalComposite,
+          metadata: {
+            width: metadata.width!,
+            height: metadata.height!,
+            size: finalComposite.length,
+          },
+        };
+      } else {
+        // No clipping needed, just composite normally
+        compositeOps.push({
+          input: visibleDesign,
+          left: compositeX,
+          top: compositeY,
+          blend: "over" as const,
+        });
+      }
     }
 
-    // Create transparent canvas for design
-    const transparentCanvas = await sharp({
-      create: {
-        width: designWidth,
-        height: designHeight,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      },
-    })
-      .png()
+    // Add template
+    compositeOps.push({
+      input: templateBuffer,
+      left: 0,
+      top: 0,
+      blend: "over" as const,
+    });
+
+    // Final composite
+    const finalComposite = await sharp(background)
+      .composite(compositeOps)
+      [outputFormat]({ quality })
       .toBuffer();
-
-    // Get design metadata for aspect ratio calculations
-    const designMeta = await sharp(designBuffer).metadata();
-    const aspectRatio = designMeta.width! / designMeta.height!;
-    const targetAspectRatio = designWidth / designHeight;
-
-    let scaledWidth: number, scaledHeight: number;
-    let offsetX = 0,
-      offsetY = 0;
-
-    // Maintain aspect ratio (contain mode - no stretching)
-    if (aspectRatio > targetAspectRatio) {
-      // Design is wider - fit to width, center vertically
-      scaledWidth = designWidth;
-      scaledHeight = Math.round(designWidth / aspectRatio);
-      offsetY = Math.round((designHeight - scaledHeight) / 2);
-    } else {
-      // Design is taller - fit to height, center horizontally
-      scaledHeight = designHeight;
-      scaledWidth = Math.round(designHeight * aspectRatio);
-      offsetX = Math.round((designWidth - scaledWidth) / 2);
-    }
-
-    // Resize design with high-quality resampling
-    const scaledDesign = await sharp(designBuffer)
-      .resize(scaledWidth, scaledHeight, {
-        fit: "fill",
-        kernel: sharp.kernel.lanczos3, // High-quality resampling
-      })
-      .toBuffer();
-
-    // Composite design onto transparent canvas
-    const compositeDesign = await sharp(transparentCanvas)
-      .composite([
-        {
-          input: scaledDesign,
-          left: offsetX,
-          top: offsetY,
-        },
-      ])
-      .png()
-      .toBuffer();
-
-    // Apply rotation if needed
-    let finalDesign = compositeDesign;
-    if (placement.rotation !== 0) {
-      finalDesign = await sharp(compositeDesign)
-        .rotate(placement.rotation, {
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .toBuffer();
-    }
-
-    // Create clipping mask for print area if design exceeds bounds
-    let finalComposite: Buffer;
-
-    if (exceedsBounds) {
-      // Create print area mask
-      const mask = await sharp({
-        create: {
-          width: templateSize.width,
-          height: templateSize.height,
-          channels: 4,
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        },
-      })
-        .composite([
-          {
-            input: Buffer.from(
-              `<svg width="${printArea.width_px}" height="${printArea.height_px}">
-                <rect width="${printArea.width_px}" height="${printArea.height_px}" fill="white"/>
-              </svg>`,
-            ),
-            left: printArea.x_px,
-            top: printArea.y_px,
-          },
-        ])
-        .png()
-        .toBuffer();
-
-      // Apply design with clipping
-      const maskedDesign = await sharp(background)
-        .composite([
-          {
-            input: finalDesign,
-            left: Math.round(designX),
-            top: Math.round(designY),
-            blend: "over",
-          },
-        ])
-        .composite([
-          {
-            input: mask,
-            blend: "dest-in",
-          },
-        ])
-        .toBuffer();
-
-      // Final composite with template
-      finalComposite = await sharp(background)
-        .composite([
-          {
-            input: maskedDesign,
-            blend: "over",
-          },
-          {
-            input: templateBuffer,
-            left: 0,
-            top: 0,
-            blend: "over",
-          },
-        ])
-        [outputFormat]({ quality })
-        .toBuffer();
-    } else {
-      // Standard compositing without clipping
-      finalComposite = await sharp(background)
-        .composite([
-          {
-            input: finalDesign,
-            left: Math.round(designX),
-            top: Math.round(designY),
-            blend: "over",
-          },
-          {
-            input: templateBuffer,
-            left: 0,
-            top: 0,
-            blend: "over",
-          },
-        ])
-        [outputFormat]({ quality })
-        .toBuffer();
-    }
 
     const metadata = await sharp(finalComposite).metadata();
 
@@ -298,7 +332,6 @@ export class MockupGenerator {
       },
     };
   }
-
   /**
    * Generate single mockup.
    * PUBLIC method for single mockup generation.
