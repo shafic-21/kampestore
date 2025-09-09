@@ -22,13 +22,15 @@ const ProductEditor = () => {
     parseAsStringLiteral(["design", "preview"]).withDefault("design"),
   );
 
+  const router = useRouter();
+
   // ===== STORE SELECTORS =====
   const {
     currentBaseSkuId,
     currentDesign,
     stageSize,
     selectedColors,
-    previews,
+    generatedPreviews,
     currentProductColorId,
   } = useProductDesignStore(
     useShallow((state) => ({
@@ -37,7 +39,7 @@ const ProductEditor = () => {
       stageSize: state.editor.stageSize,
       selectedColors: state.editor.selectedColors,
       currentProductColorId: state.editor.currentProductColorId,
-      previews: state.editor.previews,
+      generatedPreviews: state.editor.previews,
     })),
   );
 
@@ -119,13 +121,13 @@ const ProductEditor = () => {
     }
 
     const listingId = createListing();
-    const router = useRouter();
+
     router.push(`/product-design/listing/${listingId}`);
   }, [currentDesign, selectedColors, createListing]);
 
   // ===== PREVIEW MODE LOGIC =====
-  const previewKey = `${currentViewCode}_${currentProductColorId}`;
-  const previewUrl = previews[previewKey];
+  const previewImage =
+    generatedPreviews[`${currentViewCode}_${currentProductColorId}`];
 
   // ===== LOADING STATE =====
   if (!base) {
@@ -162,20 +164,21 @@ const ProductEditor = () => {
           className="flex-1 grid place-items-center min-h-0
                      h-[min(80svh,calc(100svh-10rem))] w-full p-0 overflow-hidden"
         >
-          {editorMode === "preview" && previewUrl ? (
+          {editorMode === "preview" && (
             // Preview Mode: Show cached preview
             <div
               className="relative"
               style={{ width: stageSize.width, height: stageSize.height }}
             >
               <img
-                src={previewUrl}
+                src={previewImage}
                 alt="Product preview"
                 className="w-full h-full object-contain"
               />
             </div>
-          ) : (
-            // Design Mode: Show interactive stage
+          )}
+
+          {editorMode === "design" && (
             <EditorStage
               currentViewCode={currentViewCode}
               isDesignMode={editorMode === "design"}

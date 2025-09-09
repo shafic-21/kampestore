@@ -63,7 +63,6 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
   // ===== EVENT HANDLERS =====
   const handleViewChange = (viewCode: "front" | "back") => {
     setEditorView(viewCode);
-    // Note: Store will automatically update currentView based on URL sync
   };
 
   // ===== EARLY RETURN FOR LOADING =====
