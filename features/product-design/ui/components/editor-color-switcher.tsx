@@ -19,19 +19,16 @@ export const EditorColorSwitcher = ({}) => {
   );
 
   // ===== STORE SELECTORS =====
-  const {
-    currentBaseSkuId,
-    selectedColors,
-    currentProductColorId,
-    currentDesign,
-  } = useProductDesignStore(
-    useShallow((state) => ({
-      currentBaseSkuId: state.editor.currentBaseSkuId,
-      selectedColors: state.editor.selectedColors,
-      currentProductColorId: state.editor.currentProductColorId,
-      currentDesign: state.editor.currentDesigns[editorView], // Changed this line
-    })),
-  );
+  const { currentBaseSkuId, selectedColors, currentProductColorId, currentDesign, previews } =
+    useProductDesignStore(
+      useShallow((state) => ({
+        currentBaseSkuId: state.editor.currentBaseSkuId,
+        selectedColors: state.editor.selectedColors,
+        currentProductColorId: state.editor.currentProductColorId,
+        currentDesign: state.editor.currentDesigns[editorView],
+        previews: state.editor.previews, // Add this
+      })),
+    );
 
   const setCurrentProductColor = useProductDesignStore(
     (state) => state.setCurrentProductColor,
@@ -54,12 +51,23 @@ export const EditorColorSwitcher = ({}) => {
 
   // ===== EVENT HANDLERS =====
   const handleColorSelect = async (colorId: string) => {
-    setCurrentProductColor(colorId);
-
-    // If in preview mode and has design, regenerate preview for new color
-    if (editorMode === "preview" && currentDesign) {
+    if (editorMode !== "preview" || !currentDesign) {
+      setCurrentProductColor(colorId);
+      return;
+    }
+  
+    const cacheKey = `${editorView}_${colorId}`;
+    const hasCache = Boolean(previews[cacheKey]);
+  
+    if (hasCache) {
+      // Cache exists - immediate switch + background regen
+      setCurrentProductColor(colorId);
+      handleGeneratePreview(editorView, colorId).catch(console.error);
+    } else {
+      // No cache - wait for generation, then switch
       try {
         await handleGeneratePreview(editorView, colorId);
+        setCurrentProductColor(colorId);
       } catch (error) {
         console.error("Failed to generate preview for color switch:", error);
       }

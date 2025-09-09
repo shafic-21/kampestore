@@ -39,12 +39,13 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
   const [listingId] = useQueryState("listingId", parseAsString.withDefault(""));
 
   // ===== STORE SELECTORS =====
-  const { currentBaseSkuId, currentDesign, currentProductColorId } =
+  const { currentBaseSkuId, currentDesign, currentProductColorId, previews } =
     useProductDesignStore(
       useShallow((state) => ({
         currentBaseSkuId: state.editor.currentBaseSkuId,
         currentDesign: state.editor.currentDesigns[editorView],
         currentProductColorId: state.editor.currentProductColorId,
+        previews: state.editor.previews,
       })),
     );
 
@@ -77,14 +78,23 @@ export function EditorToolbar({ handleDesignUpload }: Props) {
       setEditorMode("preview");
       return;
     }
-
-    // ✅ IMMEDIATE SWITCH: Show preview mode instantly
-    setEditorMode("preview");
-
-    // ✅ NON-BLOCKING: Start background generation (don't await)
-    handleGeneratePreview(editorView, currentProductColorId).catch((error) => {
-      console.error("Background preview generation failed:", error);
-    });
+  
+    const cacheKey = `${editorView}_${currentProductColorId}`;
+    const hasCache = Boolean(previews[cacheKey]);
+  
+    if (hasCache) {
+      // Cache exists - immediate switch + background regen
+      setEditorMode("preview");
+      handleGeneratePreview(editorView, currentProductColorId).catch(console.error);
+    } else {
+      // No cache - wait for generation, then switch
+      try {
+        await handleGeneratePreview(editorView, currentProductColorId);
+        setEditorMode("preview");
+      } catch (error) {
+        console.error("Preview generation failed:", error);
+      }
+    }
   };
 
   // ===== EARLY RETURN FOR LOADING =====

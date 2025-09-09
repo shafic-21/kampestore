@@ -49,6 +49,7 @@ export const EditorStage = ({
   const updateDesignAttributes = useProductDesignStore(
     (state) => state.updateDesignAttributes,
   );
+  const deleteDesign = useProductDesignStore((state) => state.deleteDesign);
 
   // ===== COMPUTED VALUES =====
   const currentView = base?.views?.[currentViewCode];
@@ -62,19 +63,6 @@ export const EditorStage = ({
     currentDesign?.designR2Key ? getPublicUrl(currentDesign.designR2Key) : "",
   );
   const mockupImage = templateEl || null;
-
-  // ===== TRANSFORMER SYNC =====
-  useEffect(() => {
-    const transformer = transformerRef.current;
-    const node = designRef.current;
-
-    if (isDesignMode && currentDesign && transformer && node && designImage) {
-      transformer.nodes([node]);
-      transformer.getLayer()?.batchDraw();
-    } else if (transformer) {
-      transformer.nodes([]);
-    }
-  }, [currentDesign, isDesignMode, designImage]);
 
   // ===== EVENT HANDLERS =====
   const handleStageClick = useCallback(
@@ -132,6 +120,40 @@ export const EditorStage = ({
       transformerRef.current.nodes([designRef.current]);
     }
   }, [isDesignMode]);
+
+  const handleDeleteClick = useCallback(() => {
+    if (currentDesign) {
+      deleteDesign(currentViewCode);
+    }
+  }, [currentDesign, deleteDesign, currentViewCode]);
+
+  const setupCustomAnchors = useCallback(() => {
+    const transformer = transformerRef.current;
+    if (!transformer) return;
+
+    // Wait for anchors to be created
+    setTimeout(() => {
+      const deleteAnchor = transformer.findOne(".top-left");
+      if (deleteAnchor) {
+        deleteAnchor.off("mousedown dragstart"); // Remove default handlers
+        deleteAnchor.on("click", handleDeleteClick);
+      }
+    }, 0);
+  }, [handleDeleteClick]);
+
+  // ===== TRANSFORMER SYNC =====
+  useEffect(() => {
+    const transformer = transformerRef.current;
+    const node = designRef.current;
+
+    if (isDesignMode && currentDesign && transformer && node && designImage) {
+      transformer.nodes([node]);
+      transformer.getLayer()?.batchDraw();
+      setupCustomAnchors(); // Add this line
+    } else if (transformer) {
+      transformer.nodes([]);
+    }
+  }, [currentDesign, isDesignMode, designImage, setupCustomAnchors]);
 
   // ===== EARLY RETURN FOR LOADING =====
   if (!base || !currentView) {

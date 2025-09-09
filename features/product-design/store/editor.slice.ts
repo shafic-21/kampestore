@@ -235,6 +235,7 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
       const isSelected = state.editor.selectedColors.includes(colorId);
       let newSelectedColors: string[];
       let newFeaturedColorId = state.editor.featuredColorId;
+      let newCurrentProductColorId = state.editor.currentProductColorId;
 
       if (isSelected) {
         newSelectedColors = state.editor.selectedColors.filter(
@@ -242,6 +243,11 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
         );
         if (state.editor.featuredColorId === colorId) {
           newFeaturedColorId = newSelectedColors[0] || null;
+        }
+
+        // Handle currentProductColorId when removing
+        if (state.editor.currentProductColorId === colorId) {
+          newCurrentProductColorId = newSelectedColors[0] || null;
         }
       } else if (state.editor.selectedColors.length < 5) {
         newSelectedColors = [...state.editor.selectedColors, colorId];
@@ -251,11 +257,13 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
       } else {
         return {};
       }
+
       return {
         editor: {
           ...state.editor,
           selectedColors: newSelectedColors,
           featuredColorId: newFeaturedColorId,
+          currentProductColorId: newCurrentProductColorId,
         },
       };
     });

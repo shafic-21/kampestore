@@ -24,17 +24,36 @@ import { ColorSwatch, ColorSwatchRow } from "@/components/ui/color-swatch";
 import { ProductPreviewColorselector } from "./product-color-preview";
 import { useProductDesignStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
+import { usePreviewGenerator } from "../../hooks/use-preview-generator";
 
 export function EditorSidePanel({ ...props }) {
-  const { currentBaseSkuId, selectedColors, featuredColorId, customerPrice } =
-    useProductDesignStore(
-      useShallow((state) => ({
-        currentBaseSkuId: state.editor.currentBaseSkuId, // Note: state.editor.*
-        selectedColors: state.editor.selectedColors,
-        featuredColorId: state.editor.featuredColorId,
-        customerPrice: state.editor.customerPrice,
-      })),
-    );
+  const [editorMode] = useQueryState(
+    "mode",
+    parseAsStringLiteral(["design", "preview"]).withDefault("design"),
+  );
+  const [editorViewCode] = useQueryState(
+    "view",
+    parseAsStringLiteral(["front", "back"]).withDefault("front"),
+  );
+
+  const {
+    currentBaseSkuId,
+    selectedColors,
+    featuredColorId,
+    customerPrice,
+    previews,
+    currentDesign,
+  } = useProductDesignStore(
+    useShallow((state) => ({
+      currentBaseSkuId: state.editor.currentBaseSkuId, // Note: state.editor.*
+      selectedColors: state.editor.selectedColors,
+      featuredColorId: state.editor.featuredColorId,
+      customerPrice: state.editor.customerPrice,
+      previews: state.editor.previews,
+      currentDesign: state.editor.currentDesigns[editorViewCode],
+    })),
+  );
 
   const frontMockupUrl = useProductDesignStore((state) => {
     const skuId = state.editor.currentBaseSkuId;
@@ -55,13 +74,17 @@ export function EditorSidePanel({ ...props }) {
     (state) => state.toggleColorSelection,
   );
 
+  const setCurrentProductColor = useProductDesignStore(
+    (state) => state.setCurrentProductColor,
+  );
+
   // Get pricing management action from store
   const setCustomerPrice = useProductDesignStore(
     (state) => state.setCustomerPrice,
   );
 
   const [priceInputValue, setPriceInputValue] = useState<string>(
-    customerPrice.toString(),
+    customerPrice ? customerPrice?.toString() : "0",
   );
 
   const base = useProductDesignStore((state) =>
@@ -76,7 +99,7 @@ export function EditorSidePanel({ ...props }) {
 
   // Display profit uses typed value if available; otherwise falls back to store value
   const displayProfit = useMemo(() => {
-    const price = priceInputValue ? parseInt(priceInputValue) : customerPrice;
+    const price = priceInputValue ? parseInt(priceInputValue) : customerPrice as number;
     return Math.max(0, price - baseCost);
   }, [priceInputValue, customerPrice, baseCost]);
 
@@ -103,14 +126,45 @@ export function EditorSidePanel({ ...props }) {
     );
   }
 
+  // ===== PREVIEW GENERATOR =====
+  const { handleGeneratePreview, isGenerating, generationError } =
+    usePreviewGenerator();
+
   // ===== EVENT HANDLERS =====
   /**
    * Handle color selection toggle.
    * Uses store action that manages the business logic for adding/removing colors
    * and automatically updates the featured color when needed.
    */
-  const handleColorToggle = (colorId: string) => {
-    toggleColorSelection(colorId);
+  const handleColorToggle = async (colorId: string) => {
+    const wasSelected = selectedColors.includes(colorId);
+
+    if (wasSelected) {
+      toggleColorSelection(colorId);
+    } else {
+      // Adding color - handle preview mode carefully
+      if (editorMode === "preview" && currentDesign) {
+        const cacheKey = `${editorViewCode}_${colorId}`;
+        const hasCache = Boolean(previews[cacheKey]);
+
+        if (hasCache) {
+          // Cache exists - safe to toggle and switch immediately
+          toggleColorSelection(colorId);
+          setCurrentProductColor(colorId);
+        } else {
+          toggleColorSelection(colorId);
+          try {
+            await handleGeneratePreview(editorViewCode, colorId);
+            setCurrentProductColor(colorId);
+          } catch (error) {
+            console.error("Failed to generate preview:", error);
+          }
+        }
+      } else {
+        toggleColorSelection(colorId);
+        setCurrentProductColor(colorId);
+      }
+    }
   };
 
   /**

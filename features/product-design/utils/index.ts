@@ -10,4 +10,6 @@ function createColorMap<T extends { id: string }>(
   );
 }
 
+
+
 export { createColorMap };
