@@ -3,8 +3,9 @@ import { headers } from "next/headers";
 import { ErrorBoundary } from "react-error-boundary";
 import { getQueryClient, trpc } from "@/trpc/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { BaseSelectionView } from "@/features/creators/ui/views/base-selection-view";
+
 import { auth } from "@/server/auth";
+import { PickBaseView } from "@/features/product-design/ui/views/pick-base-view";
 
 interface SearchParams {
 	q?: string;
@@ -52,7 +53,7 @@ export default async function ProductSelectionPage({
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
 			<ErrorBoundary fallback={<div>Error</div>}>
-				<BaseSelectionView />
+				<PickBaseView />
 			</ErrorBoundary>
 		</HydrationBoundary>
 	);

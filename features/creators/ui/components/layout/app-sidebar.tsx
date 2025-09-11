@@ -135,8 +135,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 		<Sidebar collapsible="icon" {...props}>
 			<SidebarHeader>
 				<SidebarMenu>
-					<SidebarMenuItem>
-						<Link href="#" className="flex items-start gap-2 text-primary">
+					<SidebarMenuItem className="flex gap-2">
+						{!isCollapsed && <Link href="#" className="flex items-start gap-2 text-primary flex-1">
 							<Image
 								height={40}
 								width={100}
@@ -148,7 +148,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 								alt="Kampe marketplace logo"
 								className={`object-fit h-6 w-auto`}
 							/>
-						</Link>
+						</Link>}
+						<SidebarTrigger className="flex-shrink-0" />
 					</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarHeader>

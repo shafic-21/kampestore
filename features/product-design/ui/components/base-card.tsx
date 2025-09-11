@@ -1,47 +1,54 @@
 "use client";
 
-import Link from "next/link";
+
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card} from "@/components/ui/card";
 import { ColorSwatchRow } from "@/components/ui/color-swatch";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@automattic/format-currency";
 
-interface BaseSkuCardProps {
-	product: {
+type Props = {
+	base: {
 		id: string;
-		code: string;
 		name: string;
 		attributes: string[];
 		cost: string;
-		category: {
-			id: string;
-			name: string;
-			slug: string;
-		};
 		colors: Array<{
 			id: string;
 			hexValue: string;
 			displayName: string;
 		}>;
 		totalColors: number;
-		heroImageUrl: string;
+		displayImageUrl: string;
 };
 	className?: string;
+	maxColorsVisible?: number;
+	isPreEditor?: boolean;
 }
 
-export function BaseSkuCard({ product, className }: BaseSkuCardProps) {
+export function BaseCard({ base, className, maxColorsVisible =8, isPreEditor = true}: Props) {
+  const router = useRouter();
+
+  const handleClick = () => {
+    if (isPreEditor) {
+      router.push(`/product-design/editor/${base.id}`);
+    }
+
+
+  };
+
 	return (
-		<div>
-			<Link
-				href={`/product-design/editor/${product.id}`}
-				className="group block"
-			>
-				<Card className={cn("p-0 border-none overflow-hidden", className)}>
+		<div onClick={handleClick} role="button" className={cn(className)}>
+			{/*<Link
+				href={`/product-design/editor/${base.id}`}
+				className="
+			>*/}
+				<Card className={cn("p-0 border-none overflow-hidden")}>
 					<div className="aspect-square relative overflow-hidden">
 						<Image
-							src={product.heroImageUrl}
-							alt={product.name}
+							src={base.displayImageUrl}
+							alt={base.name}
 							fill
 							className="object-cover object-bottom"
 							sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 25vw"
@@ -50,27 +57,27 @@ export function BaseSkuCard({ product, className }: BaseSkuCardProps) {
 						/>
 					</div>
 				</Card>
-			</Link>
+
 			<div className="space-y-3 mt-4">
 				<div className="space-y-1">
 					<h3 className="font-medium text-lg leading-tight line-clamp-2">
-						{product.name}
+						{base.name}
 					</h3>
 					<p className="text-base text-muted-foreground line-clamp-1">
-						{product.attributes.join(", ")}
+						{base.attributes.join(", ")}
 					</p>
 				</div>
 
 				<div className="space-y-2">
 					<p className="text-sm flex justify-start gap-2">
 						Base cost
-						<span>{formatCurrency(parseInt(`${product.cost}`), "UGX")}</span>
+						<span>{formatCurrency(parseInt(`${base.cost}`), "UGX")}</span>
 					</p>
 					<ColorSwatchRow
-						colors={product.colors}
-						totalColors={product.totalColors}
+						colors={base.colors}
+						totalColors={base.totalColors}
 						swatchSize="xs"
-						maxVisible={10}
+						maxVisible={maxColorsVisible}
 					/>
 				</div>
 			</div>

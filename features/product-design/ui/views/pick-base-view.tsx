@@ -4,20 +4,20 @@ import { Button } from "@/components/ui/button";
 import { useQueryState } from "nuqs";
 import { trpc } from "@/trpc/client";
 import { cn } from "@/lib/utils";
-import { SearchHeader } from "../components/editor-launcher/search-header";
-import { BaseSkuCard } from "../components/editor-launcher/base-sku-card";
+import { SearchHeader } from "../../../product-design/ui/components/search-header";
+import { BaseCard } from "../components/base-card";
 
-interface ProductSelectionViewProps {
+interface Props {
 	className?: string;
 }
 
-export function BaseSelectionView({ className }: ProductSelectionViewProps) {
+export function PickBaseView({ className }: Props) {
 	const [query] = useQueryState("q", { defaultValue: "" });
 	const [activeCategory] = useQueryState("category");
 	const [page] = useQueryState("page", { defaultValue: "1" });
 
 	// Fetch data using tRPC React Query hooks
-	const { data, isLoading, isError } = trpc.baseSkus.listBaseProducts.useQuery(
+	const { data, isLoading, isError } = trpc.productDesign.getBaseCatalog.useQuery(
 		{
 			query,
 			category: activeCategory || undefined,
@@ -51,25 +51,32 @@ export function BaseSelectionView({ className }: ProductSelectionViewProps) {
 	return (
 		<div
 			className={cn(
-				"container mx-auto py-8 px-4 max-w-7xl space-y-10",
+				"container mx-auto py-8 px-4 max-w-7xl",
 				className,
 			)}
 		>
-			<SearchHeader />
+		{/** Header */}
 
-			<main className="py-8 pt-8 space-y-12">
+			<div>
+
+				  <SearchHeader />
+			</div>
+
+
+
+			<main className=" space-y-12 mt-12">
 				{showNewProducts && (
 					<section className="space-y-6">
 						<div className="flex items-center justify-between">
-							<h1 className="text-3xl font-semibold">New products</h1>
+							<h1 className="text-2xl font-semibold">New products</h1>
 							<Button variant="link" className="text-base">
 								View all
 							</Button>
 						</div>
 
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-							{data.products.slice(0, 4).map((product) => (
-								<BaseSkuCard key={product.id} product={product} />
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 gap-y-16">
+							{[...data.products,...data.products].map((product) => (
+								<BaseCard key={product.id} base={{...product, displayImageUrl:product.heroImageUrl}} />
 							))}
 						</div>
 					</section>
@@ -91,7 +98,7 @@ export function BaseSelectionView({ className }: ProductSelectionViewProps) {
 						{data.products.length > 0 ? (
 							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
 								{data.products.map((product) => (
-									<BaseSkuCard key={product.id} product={product} />
+									<BaseCard key={product.id} base={{...product, displayImageUrl:product.heroImageUrl}} />
 								))}
 							</div>
 						) : (

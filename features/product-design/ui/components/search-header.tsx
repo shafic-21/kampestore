@@ -26,11 +26,11 @@ export function SearchHeader({ className }: SearchHeaderProps) {
 	return (
 		<div
 			className={cn(
-				"sticky top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b w-full",
+				"sticky top-16 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-full border-b-2",
 				className,
 			)}
 		>
-			<div className="px-8 py-4 space-y-4 ">
+			<div className="py-4 space-y-4 ">
 				<div className="flex items-center gap-4">
 					<div className="relative flex-1 ">
 						<SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -43,12 +43,12 @@ export function SearchHeader({ className }: SearchHeaderProps) {
 					</div>
 				</div>
 
-				<nav className="flex items-center gap-1 overflow-x-auto">
+				<nav className="flex items-center gap-2 overflow-x-auto">
 					<Button
 						variant={"ghost"}
 						onClick={() => setActiveCategory(null)}
 						className={cn(
-							"whitespace-nowrap",
+							"whitespace-nowrap text-lg font-normal",
 							activeCategory === null && "bg-muted",
 						)}
 					>
@@ -60,7 +60,7 @@ export function SearchHeader({ className }: SearchHeaderProps) {
 							variant={"ghost"}
 							onClick={() => setActiveCategory(item.value)}
 							className={cn(
-								"whitespace-nowrap",
+								"whitespace-nowrap text-lg font-normal",
 								activeCategory === item.value && "bg-muted",
 							)}
 						>
