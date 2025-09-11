@@ -1,6 +1,6 @@
 
-import { CreateListingView } from "@/features/product-design/ui/views/create-listing-view";
 import { Suspense } from "react";
+import { CreateListingView } from "@/features/product-design/ui/views/create-listing-view";
 
 /**
  * Listing Page Server Component
