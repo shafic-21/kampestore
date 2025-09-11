@@ -1,4 +1,5 @@
-import { CreateListingView } from "@/features/creators/ui/views/create-listing-view";
+
+import { CreateListingView } from "@/features/product-design/ui/views/create-listing-view";
 import { Suspense } from "react";
 
 /**

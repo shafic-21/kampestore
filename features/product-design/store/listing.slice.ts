@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
-import type { ListingSliceCreator, ListingProduct } from "../types/store.types";
+import type { ListingSliceCreator, ListingProduct, CachedProduct } from "../types/store.types";
+import { trpcClient } from "@/trpc/client";
+import { extractKeyFromPublicUrl } from "@/lib/r2";
 
 export const createListingSlice: ListingSliceCreator = (set, get) => ({
   listing: {
@@ -115,22 +117,87 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 		}));
 	},
 
-	generateBulkPreviewsForListing: async () => {
+generateCatalogPreviews: async () => {
 		const state = get();
-		const { products, designs } = state.listing;
+		const { designs } = state.listing;
 		
-		if (!designs || Object.keys(designs).length === 0) {
-			console.error("No designs saved in listing");
+		if (!designs || !designs.front) {
+			console.error("No front design available for preview generation");
 			return;
 		}
 		
-		if (products.length === 0) {
-			console.warn("No products in listing");
-			return;
+		const frontDesign = designs.front;
+		const catalogProducts = Object.values(state.bases.catalog);
+		
+		console.log(`Starting preview generation for ${catalogProducts.length} products in catalog...`);
+		
+		// Process each product
+		for (const [index, product] of catalogProducts.entries()) {
+			try {
+				const view = product.views.front;
+				if (!view) continue;
+				
+				// Use first color as default for preview
+				const firstColorId = Object.keys(product.colors)[0];
+				if (!firstColorId) continue;
+				
+				const color = product.colors[firstColorId];
+				
+				console.log(`Generating preview ${index + 1}/${catalogProducts.length}: ${product.name}`);
+				
+				// Generate mockup
+				const result = await trpcClient.productDesign.mockup.generateMockup.mutate({
+					designR2Key: frontDesign.designR2Key,
+					templateR2Key: extractKeyFromPublicUrl(view.template.url),
+					backgroundColor: color.hexValue,
+					templateSize: {
+						width: view.template.sourceWidthPx,
+						height: view.template.sourceHeightPx,
+					},
+					printArea: view.printArea,
+					placement: frontDesign.placement,
+					outputFormat: "png",
+					quality: 85,
+				});
+				
+				// Convert to blob URL
+				const base64Data = result.mockupData;
+				const binaryString = atob(base64Data);
+				const bytes = new Uint8Array(binaryString.length);
+				for (let i = 0; i < binaryString.length; i++) {
+					bytes[i] = binaryString.charCodeAt(i);
+				}
+				const blob = new Blob([bytes], { type: result.contentType });
+				const blobUrl = URL.createObjectURL(blob);
+				
+				// Update cached product with preview
+				set((state) => ({
+					bases: {
+						...state.bases,
+						catalog: {
+							...state.bases.catalog,
+							[product.id]: {
+								...state.bases.catalog[product.id],
+								generatedPreview: {
+									imageUrl: blobUrl,
+									placement: frontDesign.placement,
+								},
+							},
+						},
+					},
+				}));
+				
+				// Small delay between requests
+				if (index < catalogProducts.length - 1) {
+					await new Promise(resolve => setTimeout(resolve, 50));
+				}
+				
+			} catch (error) {
+				console.error(`Failed to generate preview for ${product.name}:`, error);
+				// Continue with next product
+			}
 		}
 		
-		// Use designs from listing (front, back, etc.)
-		console.log(`Generating previews for ${products.length} products with ${Object.keys(designs).length} views...`);
-		// TODO: Implement actual bulk generation
+		console.log("Catalog preview generation completed");
 },
 });

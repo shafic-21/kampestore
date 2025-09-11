@@ -63,6 +63,7 @@ const ProductEditor = () => {
 	const setStageSize = useProductDesignStore((state) => state.setStageSize);
 	const uploadDesign = useProductDesignStore((state) => state.uploadDesign);
 	const createListing = useProductDesignStore((state) => state.createListing);
+	const generateCatalogPreviews = useProductDesignStore((state) => state.generateCatalogPreviews);
 
 	// ===== REFS =====
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -131,10 +132,17 @@ const ProductEditor = () => {
 			return;
 		}
 
+		// Create listing and navigate immediately
 		const listingId = createListing();
 
+
+		generateCatalogPreviews().catch(error => {
+			console.error("Background preview generation failed:", error);
+		});
+
+		// Navigate without waiting
 		router.push(`/product-design/listing/${listingId}`);
-	}, [currentDesign, selectedColors, createListing]);
+}, [currentDesign, selectedColors, createListing, generateCatalogPreviews]);
 
 	// ===== PREVIEW MODE LOGIC =====
 	const previewImage =
@@ -149,7 +157,6 @@ const ProductEditor = () => {
 		);
 	}
 
-	// ===== RENDER =====
 	return (
 		<div className="w-full h-full  relative overflow-hidden flex flex-col gap-4 px-4 py-4">
 			<div className="w-full flex justify-between">

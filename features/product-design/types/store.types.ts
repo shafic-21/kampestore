@@ -176,7 +176,7 @@ export interface ListingActions {
 	getProductCount: () => number;
 	clearListing: () => void;
 
-	generateBulkPreviewsForListing: () => Promise<void>;
+generateCatalogPreviews: () => Promise<void>;
 }
 
 export type ListingSlice = ListingState & ListingActions;

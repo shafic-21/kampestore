@@ -21,24 +21,6 @@ import { useShallow } from "zustand/react/shallow";
  */
 export function CreateListingView() {
 	const searchParams = useSearchParams();
-	const listingId = searchParams.get("id");
-
-	// Get listing store state
-	const { listingId: currentListingId, hasProducts } = useListingStore(
-		useShallow((state) => ({
-			listingId: state.listingId,
-			hasProducts: state.hasProducts,
-		})),
-	);
-
-	// Show loading state while initializing
-	// if (!currentListingId || !hasProducts()) {
-	//   return (
-	//     <div className="flex items-center justify-center h-screen">
-	//       <div className="text-muted-foreground">Loading listing...</div>
-	//     </div>
-	//   );
-	// }
 
 	return (
 		<SidebarProvider
