@@ -7,16 +7,16 @@ import { BasicInfoInput } from "../schemas/basic-info";
 type Duplicate = { id: string; title: string };
 
 export async function checkDuplicates(db: DB, input: BasicInfoInput) {
-  if (input.gtin) {
-    // await 🔑
-    return (await db.query.catalogProducts.findMany({
-      columns: { id: true, title: true },
-      where: (p, { eq }) =>
-        eq(p.gtin, input.gtin!) && eq(p.lifecycleStatus, "active"),
-    })) as Duplicate[];
-  }
+	if (input.gtin) {
+		// await 🔑
+		return (await db.query.catalogProducts.findMany({
+			columns: { id: true, title: true },
+			where: (p, { eq }) =>
+				eq(p.gtin, input.gtin!) && eq(p.lifecycleStatus, "active"),
+		})) as Duplicate[];
+	}
 
-  const res = await db.execute<Duplicate>(sql`
+	const res = await db.execute<Duplicate>(sql`
     SELECT id, title
     FROM catalog_products
     WHERE brand_id = ${input.brandId}
@@ -26,5 +26,5 @@ export async function checkDuplicates(db: DB, input: BasicInfoInput) {
     LIMIT 5;
   `);
 
-  return res.rows; // Duplicate[]
+	return res.rows; // Duplicate[]
 }

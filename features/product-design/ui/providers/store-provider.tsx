@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useProductDesignStore } from "../../store";
 
 interface StoreProviderProps {
-  children: React.ReactNode;
+	children: React.ReactNode;
 }
 
 /**
@@ -27,44 +27,44 @@ interface StoreProviderProps {
  * 4. Cleanup session and blob URLs on unmount
  */
 export function StoreProvider({ children }: StoreProviderProps) {
-  const [isHydrated, setIsHydrated] = useState(false);
+	const [isHydrated, setIsHydrated] = useState(false);
 
-  // Get store actions for session management
-  const initializeSession = useProductDesignStore(
-    (state) => state.initializeSession,
-  );
-  const cleanupSession = useProductDesignStore((state) => state.cleanupSession);
+	// Get store actions for session management
+	const initializeSession = useProductDesignStore(
+		(state) => state.initializeSession,
+	);
+	const cleanupSession = useProductDesignStore((state) => state.cleanupSession);
 
-  // Handle store hydration and session initialization
-  useEffect(() => {
-    // Wait for zustand persist to hydrate from localStorage
-    const unsubscribe = useProductDesignStore.persist.onFinishHydration(() => {
-      setIsHydrated(true);
-      initializeSession();
-    });
+	// Handle store hydration and session initialization
+	useEffect(() => {
+		// Wait for zustand persist to hydrate from localStorage
+		const unsubscribe = useProductDesignStore.persist.onFinishHydration(() => {
+			setIsHydrated(true);
+			initializeSession();
+		});
 
-    // If already hydrated, initialize immediately
-    if (useProductDesignStore.persist.hasHydrated()) {
-      setIsHydrated(true);
-      initializeSession();
-    }
+		// If already hydrated, initialize immediately
+		if (useProductDesignStore.persist.hasHydrated()) {
+			setIsHydrated(true);
+			initializeSession();
+		}
 
-    // Cleanup function
-    return () => {
-      unsubscribe();
-      cleanupSession();
-    };
-  }, [initializeSession, cleanupSession]);
+		// Cleanup function
+		return () => {
+			unsubscribe();
+			cleanupSession();
+		};
+	}, [initializeSession, cleanupSession]);
 
-  // Show loading state while waiting for hydration
-  if (!isHydrated) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
+	// Show loading state while waiting for hydration
+	if (!isHydrated) {
+		return (
+			<div className="flex items-center justify-center h-64">
+				<div className="text-muted-foreground">Loading...</div>
+			</div>
+		);
+	}
 
-  // Render children once store is hydrated
-  return <>{children}</>;
+	// Render children once store is hydrated
+	return <>{children}</>;
 }

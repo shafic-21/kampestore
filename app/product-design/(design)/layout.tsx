@@ -1,9 +1,9 @@
 import { StoreProvider } from "@/features/product-design/ui/providers/store-provider";
 
 export default function ProductDesignLayout({
-  children,
+	children,
 }: {
-  children: React.ReactNode;
+	children: React.ReactNode;
 }) {
-  return <StoreProvider>{children}</StoreProvider>;
+	return <StoreProvider>{children}</StoreProvider>;
 }

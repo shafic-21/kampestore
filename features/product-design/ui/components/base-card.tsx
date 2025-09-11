@@ -5,7 +5,6 @@ import Image from "next/image";
 import { Card} from "@/components/ui/card";
 import { ColorSwatchRow } from "@/components/ui/color-swatch";
 import { cn } from "@/lib/utils";
-import type { BaseProductCard } from "@/features/creators/types/editor.types";
 import { formatCurrency } from "@automattic/format-currency";
 
 interface BaseSkuCardProps {

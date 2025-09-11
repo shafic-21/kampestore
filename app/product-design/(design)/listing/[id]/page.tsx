@@ -12,9 +12,9 @@ import { Suspense } from "react";
  * URL: /editor/listing?id=listingId
  */
 export default function ListingPage() {
-  return (
-    <Suspense fallback={<div>Loading listing...</div>}>
-      <CreateListingView />
-    </Suspense>
-  );
+	return (
+		<Suspense fallback={<div>Loading listing...</div>}>
+			<CreateListingView />
+		</Suspense>
+	);
 }

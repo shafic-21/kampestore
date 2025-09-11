@@ -8,50 +8,50 @@ import editStoreImage from "@/features/creators/assets/edit-store.png";
 import runSaleImage from "@/features/creators/assets/run a sale.png";
 
 interface QuickActionCard {
-  imageSrc: StaticImageData;
-  href: string;
-  imageAlt: string;
+	imageSrc: StaticImageData;
+	href: string;
+	imageAlt: string;
 }
 
 const quickActions: QuickActionCard[] = [
-  {
-    imageSrc: createProductsImage,
-    href: "/editor-launcher",
-    imageAlt: "Create new products",
-  },
-  {
-    imageSrc: editStoreImage,
-    href: "/creator/store/settings",
-    imageAlt: "Edit store",
-  },
-  {
-    imageSrc: runSaleImage,
-    href: "/creator/promotions",
-    imageAlt: "Run a sale",
-  },
+	{
+		imageSrc: createProductsImage,
+		href: "/editor-launcher",
+		imageAlt: "Create new products",
+	},
+	{
+		imageSrc: editStoreImage,
+		href: "/creator/store/settings",
+		imageAlt: "Edit store",
+	},
+	{
+		imageSrc: runSaleImage,
+		href: "/creator/promotions",
+		imageAlt: "Run a sale",
+	},
 ];
 
 export function QuickActions() {
-  return (
-    <div>
-      <h2 className="text-2xl font-semibold mb-6">Quick actions</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {quickActions.map((action, index) => {
-          return (
-            <Link key={index} href={action.href}>
-              <Card className=" duration-200 cursor-pointer rounded-lg overflow-hidden h-fit p-0">
-                <Image
-                  src={action.imageSrc}
-                  alt={action.imageAlt}
-                  className="w-full h-auto rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
-                  placeholder="blur"
-                  priority={index < 3}
-                />
-              </Card>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
+	return (
+		<div>
+			<h2 className="text-2xl font-semibold mb-6">Quick actions</h2>
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+				{quickActions.map((action, index) => {
+					return (
+						<Link key={index} href={action.href}>
+							<Card className=" duration-200 cursor-pointer rounded-lg overflow-hidden h-fit p-0">
+								<Image
+									src={action.imageSrc}
+									alt={action.imageAlt}
+									className="w-full h-auto rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
+									placeholder="blur"
+									priority={index < 3}
+								/>
+							</Card>
+						</Link>
+					);
+				})}
+			</div>
+		</div>
+	);
 }

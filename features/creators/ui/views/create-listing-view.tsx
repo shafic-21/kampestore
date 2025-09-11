@@ -20,40 +20,40 @@ import { useShallow } from "zustand/react/shallow";
  * URL: /editor/listing?id=listingId
  */
 export function CreateListingView() {
-  const searchParams = useSearchParams();
-  const listingId = searchParams.get("id");
+	const searchParams = useSearchParams();
+	const listingId = searchParams.get("id");
 
-  // Get listing store state
-  const { listingId: currentListingId, hasProducts } = useListingStore(
-    useShallow((state) => ({
-      listingId: state.listingId,
-      hasProducts: state.hasProducts,
-    })),
-  );
+	// Get listing store state
+	const { listingId: currentListingId, hasProducts } = useListingStore(
+		useShallow((state) => ({
+			listingId: state.listingId,
+			hasProducts: state.hasProducts,
+		})),
+	);
 
-  // Show loading state while initializing
-  // if (!currentListingId || !hasProducts()) {
-  //   return (
-  //     <div className="flex items-center justify-center h-screen">
-  //       <div className="text-muted-foreground">Loading listing...</div>
-  //     </div>
-  //   );
-  // }
+	// Show loading state while initializing
+	// if (!currentListingId || !hasProducts()) {
+	//   return (
+	//     <div className="flex items-center justify-center h-screen">
+	//       <div className="text-muted-foreground">Loading listing...</div>
+	//     </div>
+	//   );
+	// }
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 60)",
-        } as React.CSSProperties
-      }
-    >
-      <ListingSidePanel variant="inset" />
-      <SidebarInset>
-        <div className="h-full w-full max-w-7xl mx-auto">
-          <AddToListingGrid />
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
-  );
+	return (
+		<SidebarProvider
+			style={
+				{
+					"--sidebar-width": "calc(var(--spacing) * 60)",
+				} as React.CSSProperties
+			}
+		>
+			<ListingSidePanel variant="inset" />
+			<SidebarInset>
+				<div className="h-full w-full max-w-7xl mx-auto">
+					<AddToListingGrid />
+				</div>
+			</SidebarInset>
+		</SidebarProvider>
+	);
 }
