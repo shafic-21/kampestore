@@ -15,7 +15,7 @@ import Link from "next/link";
 
 export const ExitEditorButton = () => (
 	<AlertDialog>
-		<AlertDialogTrigger asChild>
+		<AlertDialogTrigger asChild className="w-full">
 			<Button variant="outline">Back to dashboard</Button>
 		</AlertDialogTrigger>
 		<AlertDialogContent>

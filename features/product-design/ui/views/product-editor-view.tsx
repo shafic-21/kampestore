@@ -102,12 +102,13 @@ export function ProductEditorView({ baseSkuId }: ProductEditorViewProps) {
 					"--sidebar-width": "calc(var(--spacing) * 56)",
 				} as React.CSSProperties
 			}
+			className="min-h-0 h-full"
 		>
 			<EditorSidePanel variant="inset" />
-			<SidebarInset>
-				<div className="h-full">
+			<SidebarInset className="bg-transparent">
+				{/*<div className="h-full">*/}
 					<ProductEditor />
-				</div>
+				{/*</div>*/}
 			</SidebarInset>
 		</SidebarProvider>
 	);

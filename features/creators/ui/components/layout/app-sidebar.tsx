@@ -42,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { usePathname } from "next/navigation";
 
 const data = {
 	user: {
@@ -49,29 +50,7 @@ const data = {
 		email: "m@example.com",
 		avatar: "/avatars/shadcn.jpg",
 	},
-	// products: {
-	//   title: "Products",
-	//   items: [
-	//     {
-	//       title: "Add Single Product",
-	//       url: "/seller-center/products/add",
-	//       icon: PackagePlus,
-	//       isActive: false,
-	//     },
-	//     {
-	//       title: "Bulk Upload",
-	//       url: "/seller-center/products/bulk-upload",
-	//       icon: ArchiveRestore,
-	//       isActive: false,
-	//     },
-	//     {
-	//       title: "Products List",
-	//       url: "/seller-center/products",
-	//       icon: GalleryVerticalEnd,
-	//       isActive: false,
-	//     },
-	//   ],
-	// },
+
 	firstNav: {
 		title: null,
 		items: [
@@ -102,39 +81,18 @@ const data = {
 		],
 	},
 
-	// secondNav: {
-	//   title: null,
-	//   items: [
-	//     {
-	//       title: "Performance",
-	//       url: "/creator/performance",
-	//       icon: ChartLine,
-	//       isActive: false,
-	//     },
-	//     {
-	//       title: "Finance",
-	//       url: "/creator/finance",
-	//       icon: CreditCard,
-	//       isActive: false,
-	//     },
-	//     {
-	//       title: "Customise Store",
-	//       url: "/seller-center/customise-store",
-	//       icon: PencilRuler,
-	//       isActive: false,
-	//     },
-	//   ],
-	// },
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const { state } = useSidebar();
 	const isCollapsed = state === "collapsed";
+ const pathname = usePathname();
+  const isEditor = pathname.includes("/product-design/editor/")
 
 	return (
-		<Sidebar collapsible="icon" {...props}>
-			<SidebarHeader>
-				<SidebarMenu>
+		<Sidebar collapsible="icon" {...props} className={cn(isEditor && "bg-background")}>
+			<SidebarHeader className={cn(isEditor && "bg-background")}>
+				<SidebarMenu >
 					<SidebarMenuItem className="flex gap-2">
 						{!isCollapsed && <Link href="#" className="flex items-start gap-2 text-primary flex-1">
 							<Image
@@ -153,10 +111,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 					</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarHeader>
-			<SidebarContent>
+			<SidebarContent className={cn(isEditor && "bg-background")}>
 				<NavMain items={data.firstNav} />
 			</SidebarContent>
-			<SidebarFooter>
+			<SidebarFooter className={cn(isEditor && "bg-background")}>
 				<NavUser user={data.user} />
 			</SidebarFooter>
 		</Sidebar>

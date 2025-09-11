@@ -151,7 +151,7 @@ const ProductEditor = () => {
 
 	// ===== RENDER =====
 	return (
-		<div className="w-full h-full bg-[#F6F6F9] relative overflow-hidden flex flex-col gap-4 px-4 py-4">
+		<div className="w-full h-full  relative overflow-hidden flex flex-col gap-4 px-4 py-4">
 			<div className="w-full flex justify-between">
 				<EditorToolbar
 					handleDesignUpload={() => fileInputRef.current?.click()}
@@ -169,7 +169,7 @@ const ProductEditor = () => {
 				className="sr-only hidden"
 			/>
 
-			<div className="w-full flex flex-nowrap gap-8 items-start flex-1 min-h-0">
+			<div className="w-full flex flex-nowrap gap-8 items-start flex-1 min-h-0 ">
 				<div
 					ref={containerRef}
 					className="flex-1 grid place-items-center min-h-0

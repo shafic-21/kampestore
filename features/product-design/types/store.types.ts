@@ -154,7 +154,10 @@ export interface ListingProduct {
 export interface ListingState {
 	listing: {
 		id: string | null;
-		designR2Key: string | null;
+		designs: Record<string, {
+			designR2Key: string;
+			placement: NormalizedPlacement;
+		}> | null;
 		products: ListingProduct[];
 	};
 }
@@ -173,10 +176,7 @@ export interface ListingActions {
 	getProductCount: () => number;
 	clearListing: () => void;
 
-	generateBulkPreviewsForListing: (designData: {
-		designR2Key: string;
-		placement: NormalizedPlacement;
-	}) => Promise<void>;
+	generateBulkPreviewsForListing: () => Promise<void>;
 }
 
 export type ListingSlice = ListingState & ListingActions;

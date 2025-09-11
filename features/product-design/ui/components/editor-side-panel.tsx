@@ -116,7 +116,7 @@ export function EditorSidePanel({ ...props }) {
 			<Sidebar
 				collapsible="none"
 				{...props}
-				className="px-4 h-screen"
+				className="px-4 h-full"
 				style={{ width: "400px" }}
 			>
 				<SidebarContent>
@@ -192,10 +192,10 @@ export function EditorSidePanel({ ...props }) {
 		<Sidebar
 			collapsible="none"
 			{...props}
-			className="px-4 h-screen"
+			className="px-4 h-full bg-transparent"
 			style={{ width: "400px" }}
 		>
-			<SidebarContent>
+			<SidebarContent className="bg-transparent">
 				<ScrollArea className="h-full w-full overflow-hidden max-w-full">
 					<div className="space-y-4 p-4">
 						<Card className="gap-4">
@@ -296,12 +296,12 @@ export function EditorSidePanel({ ...props }) {
 								</CardContent>
 							</Card>
 						)}
+							<ExitEditorButton />
 					</div>
+
 				</ScrollArea>
 			</SidebarContent>
-			<SidebarFooter>
-				<ExitEditorButton />
-			</SidebarFooter>
+
 		</Sidebar>
 	);
 }

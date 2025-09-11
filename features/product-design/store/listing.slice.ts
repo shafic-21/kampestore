@@ -2,27 +2,28 @@ import { v4 as uuidv4 } from "uuid";
 import type { ListingSliceCreator, ListingProduct } from "../types/store.types";
 
 export const createListingSlice: ListingSliceCreator = (set, get) => ({
-	listing: {
-		id: null,
-		designR2Key: null,
-		products: [],
-	},
+  listing: {
+	id: null,
+	designs: null,
+	products: [],
+  },
 
-	createListing: () => {
-		const newListingId = uuidv4();
-		const designR2Key = get().editor.currentDesign?.designR2Key || null;
-		set((state) => ({
-			listing: {
-				...state.listing,
-				id: newListingId,
-				designR2Key,
-				products: [],
-				previews: {},
-			},
-		}));
+  createListing: () => {
+	const newListingId = uuidv4();
+	const state = get();
+	const publishingData = state.getPublishingData();
 
-		return newListingId;
-	},
+	set((state) => ({
+		listing: {
+			...state.listing,
+			id: newListingId,
+			designs: publishingData,
+			products: [],
+		},
+	}));
+
+	return newListingId;
+  },
 
 	addProduct: (baseSkuId, colors = []) => {
 		const state = get();
@@ -108,13 +109,28 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 			listing: {
 				...state.listing,
 				id: null,
-				designR2Key: null,
+				designs: null,
 				products: [],
-			},
+},
 		}));
 	},
 
-	generateBulkPreviewsForListing: async (designData) => {
-		//TODO create this later
-	},
+	generateBulkPreviewsForListing: async () => {
+		const state = get();
+		const { products, designs } = state.listing;
+		
+		if (!designs || Object.keys(designs).length === 0) {
+			console.error("No designs saved in listing");
+			return;
+		}
+		
+		if (products.length === 0) {
+			console.warn("No products in listing");
+			return;
+		}
+		
+		// Use designs from listing (front, back, etc.)
+		console.log(`Generating previews for ${products.length} products with ${Object.keys(designs).length} views...`);
+		// TODO: Implement actual bulk generation
+},
 });
