@@ -1,9 +1,7 @@
 "use client";
-import { useSearchParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useProductDesignStore } from "../../store";
-import { AddToListingGrid } from "../components/add-to-listing-grid";
 import { BaseCard } from "../components/base-card";
 import { ListingSidePanel } from "../components/listing-side-panel";
 
@@ -18,9 +16,7 @@ import { ListingSidePanel } from "../components/listing-side-panel";
  * URL: /editor/listing?id=listingId
  */
 export function CreateListingView() {
-  const searchParams = useSearchParams();
   const catalog = useProductDesignStore((state) => state.bases.catalog);
-
   const products = Object.values(catalog);
 
   return (
