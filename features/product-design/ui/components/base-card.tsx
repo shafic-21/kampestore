@@ -1,7 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@automattic/format-currency";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, PlusIcon } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -84,11 +84,11 @@ export function BaseCard({
             placeholder="blur"
             blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkbHB0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R7yl5L6R6LSUSb6JB7"
           />
-          {showCheck && (
-            <div className="absolute z-20 top-4 right-4 bg-background ring-2 ring-primary rounded-sm size-6 grid place-items-center">
+          <div className={cn("absolute z-20 top-4 right-4 bg-background ring-1 rounded-sm size-6 grid place-items-center", )}>
+            {showCheck ? (
               <CheckIcon className="size-4 text-primary" />
-            </div>
-          )}
+            ) :  <PlusIcon className="size-4 text-primary" />}
+          </div>
         </div>
       </Card>
       <div className="space-y-3 mt-4">
@@ -101,10 +101,13 @@ export function BaseCard({
           </p>
         </div>
         <div className="space-y-2">
-          <p className="text-sm flex justify-start gap-2">
+          {!isPreEditor ? <p className="test-sm">
+            Profit starting at {" "}
+            <span className="font-semibold text-green-500">{formatCurrency(((Number(base.cost) * 1.2) - Number(base.cost)), "UGX")}</span>
+          </p> : <p className="text-sm flex justify-start gap-2">
             Base cost
-            <span>{formatCurrency(parseInt(`${base.cost}`), "UGX")}</span>
-          </p>
+            <span>{formatCurrency(Number(base.cost), "UGX")}</span>
+          </p>}
           <ColorSwatchRow
             colors={base.colors}
             totalColors={base.totalColors}

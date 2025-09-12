@@ -7,9 +7,7 @@ export const productSearchFiltersSchema = z.object({
 	limit: z.number().int().min(1).max(50).default(20),
 });
 
-export const baseProductListSchema = z.object({
-	filters: productSearchFiltersSchema,
-});
+
 
 export type ProductSearchFilters = z.infer<typeof productSearchFiltersSchema>;
-export type BaseProductListInput = z.infer<typeof baseProductListSchema>;
+
