@@ -18,7 +18,6 @@ interface ListingProductCardProps {
 
 export function ListingProductCard({
   product,
-  listingId,
 }: ListingProductCardProps) {
   const router = useRouter();
 
@@ -36,9 +35,7 @@ export function ListingProductCard({
    * Navigate to individual product editor with listing context
    */
   const handleEdit = () => {
-    if (listingId) {
-      router.push(`/product-design/editor/${listingId}/${product.baseSkuId}`);
-    }
+    router.push(`/product-design/editor/${product.baseSkuId}`);
   };
 
   /**

@@ -1,60 +1,60 @@
-import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { ErrorBoundary } from "react-error-boundary";
-import { getQueryClient, trpc } from "@/trpc/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-
-import { auth } from "@/server/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { ErrorBoundary } from "react-error-boundary";
 import { PickBaseView } from "@/features/product-design/ui/views/pick-base-view";
 
+import { auth } from "@/server/auth";
+import { getQueryClient, trpc } from "@/trpc/server";
+
 interface SearchParams {
-	q?: string;
-	category?: string;
-	page?: string;
+  q?: string;
+  category?: string;
+  page?: string;
 }
 
 interface PageProps {
-	searchParams: Promise<SearchParams>;
+  searchParams: Promise<SearchParams>;
 }
 
 export default async function ProductSelectionPage({
-	searchParams,
+  searchParams,
 }: PageProps) {
-	const params = await searchParams;
-	const Headers = await headers();
+  const params = await searchParams;
+  const Headers = await headers();
 
-	// Check authentication
-	const session = await auth.api.getSession({
-		headers: Headers,
-	});
+  // Check authentication
+  const session = await auth.api.getSession({
+    headers: Headers,
+  });
 
-	if (!session) {
-		redirect("/auth/sign-in");
-	}
+  if (!session) {
+    redirect("/auth/sign-in");
+  }
 
-	const creator = await trpc.creators.getMyCreatorProfile();
+  const creator = await trpc.creators.getMyCreatorProfile();
 
-	if (!creator) {
-		redirect("/creator/onboarding");
-	}
+  if (!creator) {
+    redirect("/creator/onboarding");
+  }
 
-	// Parse search parameters
-	const filters = {
-		query: params.q || "",
-		category: params.category,
-		page: parseInt(params.page || "1", 10),
-		limit: 20,
-	};
+  // Parse search parameters
+  const filters = {
+    query: params.q || "",
+    category: params.category,
+    page: parseInt(params.page || "1", 10),
+    limit: 20,
+  };
 
-	// Prefetch product selection data
-	const queryClient = getQueryClient();
-	await trpc.baseSkus.listBaseProducts.prefetch(filters);
+  // Prefetch product selection data
+  const queryClient = getQueryClient();
+  await trpc.productDesign.getBaseCatalog.prefetch(filters);
 
-	return (
-		<HydrationBoundary state={dehydrate(queryClient)}>
-			<ErrorBoundary fallback={<div>Error</div>}>
-				<PickBaseView />
-			</ErrorBoundary>
-		</HydrationBoundary>
-	);
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <ErrorBoundary fallback={<div>Error</div>}>
+        <PickBaseView />
+      </ErrorBoundary>
+    </HydrationBoundary>
+  );
 }

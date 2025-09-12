@@ -1,10 +1,7 @@
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from 'uuid';
 import { extractKeyFromPublicUrl } from "@/lib/r2";
 import { trpcClient } from "@/trpc/client";
-import type {
-  ListingProduct,
-  ListingSliceCreator,
-} from "../types/store.types";
+import type { ListingProduct, ListingSliceCreator } from "../types/store.types";
 
 export const createListingSlice: ListingSliceCreator = (set, get) => ({
   listing: {
@@ -18,16 +15,32 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
     const state = get();
     const publishingData = state.getPublishingData();
 
+    const currentBaseSkuId = state.editor.currentBaseSkuId;
+    const selectedColors = state.editor.selectedColors;
+    const featuredColorId = state.editor.featuredColorId;
+    const customerPrice = state.editor.customerPrice;
+
+    if (!currentBaseSkuId) {
+      console.error("No current product to create listing from");
+      return null;
+    }
+    const base = state.bases.catalog[currentBaseSkuId];
+
+    const initialProduct: ListingProduct = {
+      baseSkuId: currentBaseSkuId,
+      price: customerPrice || Math.round((base?.cost || 0) * 1.2),
+      colors: selectedColors.slice(0, 5),
+      featuredColorId: featuredColorId,
+    };
+
     set((state) => ({
       listing: {
         ...state.listing,
         id: newListingId,
         designs: publishingData,
-        products: [],
+        products: [...state.listing.products, initialProduct],
       },
     }));
-
-    return newListingId;
   },
 
   addProduct: (baseSkuId, colors = []) => {

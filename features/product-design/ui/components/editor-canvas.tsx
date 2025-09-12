@@ -129,22 +129,25 @@ const ProductEditor = () => {
     [uploadDesign, currentViewCode], // Added currentViewCode to dependencies
   );
 
+  const listingId = useProductDesignStore((state) => state.listing.id)
+
   const handleContinue = useCallback(() => {
     if (!currentDesign || !selectedColors.length) {
       alert("Please upload a design and select at least one color");
       return;
     }
 
-    // Create listing and navigate immediately
-    const listingId = createListing();
+    if (!listingId) {
+      createListing();
+    }
 
     generateCatalogPreviews().catch((error) => {
       console.error("Background preview generation failed:", error);
     });
 
     // Navigate without waiting
-    router.push(`/product-design/listing/${listingId}`);
-  }, [currentDesign, selectedColors, createListing, generateCatalogPreviews,router]);
+    router.push(`/product-design/listing`);
+  }, [currentDesign, selectedColors, createListing, generateCatalogPreviews, router, listingId]);
 
   // ===== PREVIEW MODE LOGIC =====
   const previewImage =

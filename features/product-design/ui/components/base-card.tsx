@@ -44,7 +44,6 @@ export function BaseCard({
   );
 
   const isInListing = !!getProduct(base.id);
-  const showCheck = !isPreEditor && isInListing;
 
   const handleClick = () => {
     if (isPreEditor) {
@@ -83,11 +82,11 @@ export function BaseCard({
             placeholder="blur"
             blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkbHB0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R7yl5L6R6LSUSb6JB7"
           />
-          <div className={cn("absolute z-20 top-4 right-4  ring-1 rounded-sm size-6 grid place-items-center", showCheck ? " ring-foreground bg-primary" : "bg-background ring-muted")}>
-            {showCheck ? (
+          {!isPreEditor && <div className={cn("absolute z-20 top-4 right-4  ring-1 rounded-sm size-6 grid place-items-center", isInListing ? " ring-foreground bg-primary" : "bg-background ring-muted")}>
+            {isInListing ? (
               <CheckIcon className="size-4 text-background" />
             ) : <PlusIcon className="size-4 text-foreground" />}
-          </div>
+          </div>}
         </div>
       </Card>
       <div className="space-y-3 mt-4">

@@ -157,7 +157,7 @@ export interface ListingState {
 }
 
 export interface ListingActions {
-  createListing: () => string;
+  createListing: () => void;
   addProduct: (baseSkuId: string, colors?: string[]) => void;
   updateProduct: (
     baseSkuId: string,
