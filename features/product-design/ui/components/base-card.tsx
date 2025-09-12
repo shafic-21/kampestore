@@ -71,7 +71,6 @@ export function BaseCard({
       <Card
         className={cn(
           "p-0 border-none overflow-hidden",
-          showCheck && "ring-2 ring-primary",
         )}
       >
         <div className="aspect-square relative overflow-hidden isolate">
@@ -84,26 +83,26 @@ export function BaseCard({
             placeholder="blur"
             blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkbHB0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R7yl5L6R6LSUSb6JB7"
           />
-          <div className={cn("absolute z-20 top-4 right-4 bg-background ring-1 rounded-sm size-6 grid place-items-center", )}>
+          <div className={cn("absolute z-20 top-4 right-4  ring-1 rounded-sm size-6 grid place-items-center", showCheck ? " ring-foreground bg-primary" : "bg-background ring-muted")}>
             {showCheck ? (
-              <CheckIcon className="size-4 text-primary" />
-            ) :  <PlusIcon className="size-4 text-primary" />}
+              <CheckIcon className="size-4 text-background" />
+            ) : <PlusIcon className="size-4 text-foreground" />}
           </div>
         </div>
       </Card>
       <div className="space-y-3 mt-4">
         <div className="space-y-1">
-          <h3 className="font-medium text-lg leading-tight line-clamp-2">
+          <h3 className="font-medium text-lg leading-tight line-clamp-2 text-left">
             {base.name}
           </h3>
-          <p className="text-base text-muted-foreground line-clamp-1">
+          <p className="text-base text-muted-foreground line-clamp-1 text-left">
             {base.attributes.join(", ")}
           </p>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 text-left">
           {!isPreEditor ? <p className="test-sm">
             Profit starting at {" "}
-            <span className="font-semibold text-green-500">{formatCurrency(((Number(base.cost) * 1.2) - Number(base.cost)), "UGX")}</span>
+            <span className="font-medium text-green-500">{formatCurrency(((Number(base.cost) * 1.2) - Number(base.cost)), "UGX")}</span>
           </p> : <p className="text-sm flex justify-start gap-2">
             Base cost
             <span>{formatCurrency(Number(base.cost), "UGX")}</span>
