@@ -82,7 +82,6 @@ export interface EditorState {
       } | null
     >;
 
-    //[view]_[colorId]:  "blob:..."
     previews: Record<string, string>;
     previewStates: Record<
       string,
@@ -141,14 +140,9 @@ export type EditorSlice = EditorState & EditorActions;
 // ===== LISTING SLICE TYPES =====
 export interface ListingProduct {
   baseSkuId: string;
-  baseCost: number;
   price: number;
   colors: string[];
   featuredColorId: string | null;
-  generatedPreview: {
-    imageUrl: string;
-    placement: NormalizedPlacement;
-  } | null;
 }
 
 export interface ListingState {
@@ -164,7 +158,6 @@ export interface ListingState {
 
 export interface ListingActions {
   createListing: () => string;
-
   addProduct: (baseSkuId: string, colors?: string[]) => void;
   updateProduct: (
     baseSkuId: string,
