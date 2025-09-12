@@ -153,6 +153,7 @@ export interface ListingState {
       placement: NormalizedPlacement;
     }> | null;
     products: ListingProduct[];
+    showForm: boolean;
   };
 }
 
@@ -167,6 +168,7 @@ export interface ListingActions {
   getProduct: (baseSkuId: string) => ListingProduct | null;
   hasProducts: () => boolean;
   getProductCount: () => number;
+  setShowForm: (show: boolean) => void;
   clearListing: () => void;
 
   generateCatalogPreviews: () => Promise<void>;

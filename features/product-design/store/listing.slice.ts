@@ -8,6 +8,7 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
     id: null,
     designs: null,
     products: [],
+    showForm: false,
   },
 
   createListing: () => {
@@ -95,6 +96,15 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 
   hasProducts: () => get().listing.products.length > 0,
   getProductCount: () => get().listing.products.length,
+
+  setShowForm: (show: boolean) => {
+    set((state) => ({
+      listing: {
+        ...state.listing,
+        showForm: show,
+      },
+    }));
+  },
 
   clearListing: () => {
     Object.values(get().bases.catalog).forEach((cachedProduct) => {

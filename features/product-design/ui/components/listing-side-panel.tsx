@@ -26,14 +26,17 @@ export function ListingSidePanel({ ...props }) {
   const products = useProductDesignStore((state) => state.listing.products);
   const hasProducts = useProductDesignStore((state) => state.hasProducts());
 
+  // Get form toggle action
+  const setShowForm = useProductDesignStore((state) => state.setShowForm);
+
   /**
-   * Navigate to continue flow with listing
+   * Show listing form instead of navigating
    */
   const handleContinue = async () => {
     if (!listingId) return;
 
-    // Navigate to next step (details page)
-    router.push(`/product-design/details/${listingId}`);
+    // Show the form instead of navigating
+    setShowForm(true);
   };
 
   /**
