@@ -13,7 +13,12 @@ import { EditorColorSwitcher } from "./editor-color-switcher";
 import { EditorStage } from "./editor-stage";
 import { EditorToolbar } from "./editor-toolbar";
 
-const ProductEditor = () => {
+interface ProductEditorProps {
+  initialSkuId: string;
+  isEditMode: boolean;
+}
+
+const ProductEditor = ({ initialSkuId, isEditMode }: ProductEditorProps) => {
   // ===== URL STATE =====
   const [currentViewCode] = useQueryState(
     "view",
@@ -108,6 +113,7 @@ const ProductEditor = () => {
     };
   }, [setStageSize]);
 
+
   // ===== EVENT HANDLERS =====
   const handleFileUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,7 +135,7 @@ const ProductEditor = () => {
     [uploadDesign, currentViewCode], // Added currentViewCode to dependencies
   );
 
-  const listingId = useProductDesignStore((state) => state.listing.id)
+  const listingId = useProductDesignStore((state) => state.listing.id);
 
   const handleContinue = useCallback(() => {
     if (!currentDesign || !selectedColors.length) {
@@ -137,7 +143,7 @@ const ProductEditor = () => {
       return;
     }
 
-    if (!listingId) {
+    if (!listingId && !isEditMode) {
       createListing();
     }
 
@@ -145,9 +151,20 @@ const ProductEditor = () => {
       console.error("Background preview generation failed:", error);
     });
 
-    // Navigate without waiting
-    router.push(`/product-design/listing`);
-  }, [currentDesign, selectedColors, createListing, generateCatalogPreviews, router, listingId]);
+    // Navigate with the appropriate SKU
+    const targetSku = initialSkuId || currentBaseSkuId;
+    router.push(`/product-design/listing/${targetSku}`);
+  }, [
+    currentDesign,
+    selectedColors,
+    createListing,
+    generateCatalogPreviews,
+    router,
+    listingId,
+    isEditMode,
+    initialSkuId,
+    currentBaseSkuId,
+  ]);
 
   // ===== PREVIEW MODE LOGIC =====
   const previewImage =

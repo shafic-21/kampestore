@@ -14,11 +14,10 @@ import type { ListingProduct } from "../../types/store.types";
 interface ListingProductCardProps {
   product: ListingProduct;
   listingId: string | null;
+  initialSkuId: string;
 }
 
-export function ListingProductCard({
-  product,
-}: ListingProductCardProps) {
+export function ListingProductCard({ product, initialSkuId }: ListingProductCardProps) {
   const router = useRouter();
 
   // Store selectors
@@ -27,15 +26,15 @@ export function ListingProductCard({
     (state) => state.bases.catalog[product.baseSkuId],
   );
 
-
   // Calculate profit information
   const profit = Math.max(0, product.price - base.cost);
 
   /**
    * Navigate to individual product editor with listing context
+   * URL: /product-design/editor/[edit-sku]/[initial-sku]
    */
   const handleEdit = () => {
-    router.push(`/product-design/editor/${product.baseSkuId}`);
+    router.push(`/product-design/editor/${product.baseSkuId}/${initialSkuId}`);
   };
 
   /**
@@ -45,28 +44,26 @@ export function ListingProductCard({
     removeProduct(product.baseSkuId);
   };
   return (
-
     <div className="flex gap-8 items-center border-b last:border-b-0 pb-4">
       {/* Section 1: Product Image Preview */}
       <div className="flex gap-4 justify-start flex-grow">
         <div className="w-20 h-20 flex-shrink-0">
           <div className="w-full h-full relative overflow-hidden rounded-md">
-            {/* Use generated preview if available, otherwise show mockup */}
-
             <Image
-              src={base.generatedPreview?.imageUrl || base.views.front?.template.url as string}
+              src={
+                base.generatedPreview?.imageUrl ||
+                (base.views.front?.template.url as string)
+              }
               alt={`${base.name} with design`}
               fill
               className="object-cover"
               sizes="80px"
             />
-
           </div>
         </div>
 
         {/* Section 2: Product Information */}
         <div className="flex-1 min-w-0 space-y-1">
-
           <h3 className="font-medium text-base line-clamp-2 truncate">
             {base.name}
           </h3>
@@ -88,7 +85,6 @@ export function ListingProductCard({
               {formatCurrency(profit, "UGX")}
             </span>
           </div>
-
         </div>
       </div>
 
@@ -113,6 +109,5 @@ export function ListingProductCard({
         </Button>
       </div>
     </div>
-
   );
 }

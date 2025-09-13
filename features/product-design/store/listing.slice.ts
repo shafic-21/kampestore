@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { extractKeyFromPublicUrl } from "@/lib/r2";
 import { trpcClient } from "@/trpc/client";
 import type { ListingProduct, ListingSliceCreator } from "../types/store.types";
@@ -8,7 +8,8 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
     id: null,
     designs: null,
     products: [],
-    showForm: false,
+    title: null,
+    description: null,
   },
 
   createListing: () => {
@@ -40,6 +41,16 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
         id: newListingId,
         designs: publishingData,
         products: [...state.listing.products, initialProduct],
+      },
+    }));
+  },
+
+  updateListingDetails: (title, description) => {
+    set((state) => ({
+      listing: {
+        ...state.listing,
+        title,
+        description: description || null,
       },
     }));
   },
@@ -96,15 +107,6 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 
   hasProducts: () => get().listing.products.length > 0,
   getProductCount: () => get().listing.products.length,
-
-  setShowForm: (show: boolean) => {
-    set((state) => ({
-      listing: {
-        ...state.listing,
-        showForm: show,
-      },
-    }));
-  },
 
   clearListing: () => {
     Object.values(get().bases.catalog).forEach((cachedProduct) => {

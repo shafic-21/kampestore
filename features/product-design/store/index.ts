@@ -34,6 +34,7 @@ export const useProductDesignStore = create<ProductDesignStore>()(
             currentStep: "pick",
             sessionStarted: Date.now(),
             shouldCleanup: false,
+            initialBase: null,
           },
 
           prefetchCatalogProducts: async () => {
@@ -42,32 +43,36 @@ export const useProductDesignStore = create<ProductDesignStore>()(
 
             const cachedProductIds = Object.keys(state.bases.catalog);
 
-            if (cachedProductIds.length >= 20 &&
+            if (
+              cachedProductIds.length >= 20 &&
               state.bases.lastUpdated &&
-              Date.now() - state.bases.lastUpdated < 1800000) {
-              console.log(`Catalog already has ${cachedProductIds.length} products and is fresh`);
+              Date.now() - state.bases.lastUpdated < 1800000
+            ) {
+              console.log(
+                `Catalog already has ${cachedProductIds.length} products and is fresh`,
+              );
               return;
             }
 
             try {
-              console.log(`Prefetching catalog (excluding ${cachedProductIds.length} cached products)`);
+              console.log(
+                `Prefetching catalog (excluding ${cachedProductIds.length} cached products)`,
+              );
 
               const targetCatalogSize = 30;
               const currentSize = cachedProductIds.length;
-              const fetchLimit = Math.min(
-                targetCatalogSize - currentSize,
-                30
-              );
+              const fetchLimit = Math.min(targetCatalogSize - currentSize, 30);
 
               if (fetchLimit <= 0) {
                 console.log("Catalog already at target size");
                 return;
               }
 
-              const result = await trpcClient.productDesign.getCatalogForCache.query({
-                limit: fetchLimit,
-                excludeIds: cachedProductIds,
-              });
+              const result =
+                await trpcClient.productDesign.getCatalogForCache.query({
+                  limit: fetchLimit,
+                  excludeIds: cachedProductIds,
+                });
               if (result.products.length === 0) {
                 console.log("No new products to add to catalog");
                 return;
@@ -75,10 +80,10 @@ export const useProductDesignStore = create<ProductDesignStore>()(
 
               // Merge new products with existing catalog
               const updatedCatalog: Record<string, CachedProduct> = {
-                ...state.bases.catalog
+                ...state.bases.catalog,
               };
 
-              result.products.forEach(product => {
+              result.products.forEach((product) => {
                 updatedCatalog[product.id] = product;
               });
 
@@ -87,10 +92,12 @@ export const useProductDesignStore = create<ProductDesignStore>()(
                   ...state.bases,
                   catalog: updatedCatalog,
                   lastUpdated: Date.now(),
-                }
+                },
               }));
 
-              console.log(`Added ${result.products.length} new products to catalog (total: ${Object.keys(updatedCatalog).length})`);
+              console.log(
+                `Added ${result.products.length} new products to catalog (total: ${Object.keys(updatedCatalog).length})`,
+              );
             } catch (error) {
               console.error("Failed to prefetch catalog:", error);
             }
@@ -161,9 +168,55 @@ export const useProductDesignStore = create<ProductDesignStore>()(
             bases: state.bases,
             meta: state.meta,
           }),
-          onRehydrateStorage: () => (state) => {
-            if (state?.meta.shouldCleanup) {
-              state.cleanupSession();
+          onRehydrateStorage: () => (state, error) => {
+            if (error) {
+              console.error("Hydration failed:", error);
+              return;
+            }
+
+            if (state) {
+              const isReload =
+                state.meta.sessionStarted &&
+                Date.now() - state.meta.sessionStarted > 100;
+
+              const hasDesignWork =
+                state.editor.currentDesigns &&
+                Object.values(state.editor.currentDesigns).some(
+                  (d) => d !== null,
+                );
+
+              // Handle actual reloads - clear session and reset
+              if (isReload && hasDesignWork) {
+                console.log("Reload detected with existing work - clearing session");
+
+                // Clear everything and start fresh
+                state.resetEditor();
+                state.clearListing();
+
+                // Reset meta
+                state.meta = {
+                  version: STORAGE_VERSION,
+                  lastSaved: Date.now(),
+                  currentStep: "pick",
+                  sessionStarted: Date.now(),
+                  shouldCleanup: false,
+                  initialBase: null,
+                };
+
+                // Check if we're on the listing page and need to redirect to editor
+                if (typeof window !== "undefined") {
+                  const pathname = window.location.pathname;
+                  // Check if we're on /product-design/listing/[sku]
+                  const listingMatch = pathname.match(/\/product-design\/listing\/([^\/]+)/);
+
+                  if (listingMatch) {
+                    const sku = listingMatch[1];
+                    console.log(`Redirecting from listing to editor after reload: ${sku}`);
+                    // Use replace to avoid adding to history
+                    window.location.replace(`/product-design/editor/${sku}`);
+                  }
+                }
+              }
             }
           },
         },

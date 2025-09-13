@@ -26,6 +26,7 @@ type Props = {
   className?: string;
   maxColorsVisible?: number;
   isPreEditor?: boolean;
+  initialSkuId?: string;
 };
 
 export function BaseCard({
@@ -33,17 +34,20 @@ export function BaseCard({
   className,
   maxColorsVisible = 8,
   isPreEditor = true,
+  initialSkuId,
 }: Props) {
   const router = useRouter();
 
-  const getProduct = useProductDesignStore((state) => state.getProduct);
   const addProduct = useProductDesignStore((state) => state.addProduct);
   const removeProduct = useProductDesignStore((state) => state.removeProduct);
   const selectedColors = useProductDesignStore(
     (state) => state.editor.selectedColors,
   );
 
-  const isInListing = !!getProduct(base.id);
+  // Subscribe to products array to trigger re-renders when products change
+  const isInListing = useProductDesignStore(
+    (state) => state.listing.products.some(p => p.baseSkuId === base.id)
+  );
 
   const handleClick = () => {
     if (isPreEditor) {

@@ -8,6 +8,7 @@ import { useListingStore } from "@/features/creators/store/listing-store";
 import { ListingSidePanel } from "../components/editor/listing-sidebar";
 import { AddToListingGrid } from "../components/editor/add-to-listing-grid";
 import { useShallow } from "zustand/react/shallow";
+import { useProductDesignStore } from "@/features/product-design/store";
 
 /**
  * ListingView Component
@@ -20,22 +21,38 @@ import { useShallow } from "zustand/react/shallow";
  * URL: /editor/listing?id=listingId
  */
 export function CreateListingView() {
-	const searchParams = useSearchParams();
+  const searchParams = useSearchParams();
+  const hasProducts = useProductDesignStore(
+    (state) => state.listing.products.length > 0,
+  );
 
-	return (
-		<SidebarProvider
-			style={
-				{
-					"--sidebar-width": "calc(var(--spacing) * 60)",
-				} as React.CSSProperties
-			}
-		>
-			<ListingSidePanel variant="inset" />
-			<SidebarInset>
-				<div className="h-full w-full max-w-7xl mx-auto">
-					<AddToListingGrid />
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
-	);
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasProducts) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasProducts]);
+
+  return (
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 60)",
+        } as React.CSSProperties
+      }
+    >
+      <ListingSidePanel variant="inset" />
+      <SidebarInset>
+        <div className="h-full w-full max-w-7xl mx-auto">
+          <AddToListingGrid />
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }

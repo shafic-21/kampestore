@@ -21,7 +21,8 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 	},
 
 	initializeEditor: (baseSkuId) => {
-		const base = get().bases.catalog[baseSkuId];
+		const state = get();
+		const base = state.bases.catalog[baseSkuId];
 		if (!base) {
 			console.warn(
 				`[initializeEditor] Product ${baseSkuId} not found in catalog`,
@@ -39,6 +40,11 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				sessionId,
 				currentBaseSkuId: baseSkuId,
 				customerPrice: defaultCustomerPrice,
+			},
+			meta: {
+				...state.meta,
+				// Set initialBase only if it's the first time (null)
+				initialBase: state.meta.initialBase || baseSkuId,
 			},
 		}));
 

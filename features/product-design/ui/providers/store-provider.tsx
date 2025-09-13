@@ -56,6 +56,26 @@ export function StoreProvider({ children }: StoreProviderProps) {
 		};
 	}, [initializeSession, cleanupSession]);
 
+	// Handle beforeunload warning for unsaved changes
+	useEffect(() => {
+		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+			const state = useProductDesignStore.getState();
+			const hasDesigns = Object.values(state.editor.currentDesigns).some(
+				(d) => d !== null,
+			);
+			const hasProducts = state.listing.products.length > 0;
+
+			if (hasDesigns || hasProducts) {
+				e.preventDefault();
+				e.returnValue = ""; // Shows "Changes you made may not be saved"
+				return "";
+			}
+		};
+
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+	}, []);
+
 	// Show loading state while waiting for hydration
 	if (!isHydrated) {
 		return (

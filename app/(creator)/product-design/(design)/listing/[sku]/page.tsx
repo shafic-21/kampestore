@@ -1,6 +1,11 @@
-
 import { Suspense } from "react";
 import { CreateListingView } from "@/features/product-design/ui/views/create-listing-view";
+
+interface ListingPageProps {
+	params: Promise<{
+		sku: string;
+	}>;
+}
 
 /**
  * Listing Page Server Component
@@ -10,12 +15,15 @@ import { CreateListingView } from "@/features/product-design/ui/views/create-lis
  * - Browse and add more products to the listing from the main content area
  * - Navigate to individual product editors with listing context
  *
- * URL: /editor/listing?id=listingId
+ * URL: /product-design/listing/[initial-sku]
+ * The SKU parameter represents the initial base SKU that started this session
  */
-export default function ListingPage() {
+export default async function ListingPage({ params }: ListingPageProps) {
+	const { sku } = await params;
+
 	return (
 		<Suspense fallback={<div>Loading listing...</div>}>
-			<CreateListingView />
+			<CreateListingView initialSkuId={sku} />
 		</Suspense>
 	);
 }

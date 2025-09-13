@@ -22,29 +22,31 @@ export interface CachedProduct {
   name: string;
   cost: number;
   generatedPreview: {
-    imageUrl: string;
+    imageUrl: string | null;
     placement: NormalizedPlacement;
   } | null;
-  views: Partial<Record<
-    "front" | "back",
-    {
-      id: string;
-      code: string;
-      displayName: string;
-      printArea: {
-        x_px: number;
-        y_px: number;
-        width_px: number;
-        height_px: number;
-        dpi: number;
-      };
-      template: {
-        url: string;
-        sourceWidthPx: number;
-        sourceHeightPx: number;
-      };
-    }
-  >>;
+  views: Partial<
+    Record<
+      "front" | "back",
+      {
+        id: string;
+        code: string;
+        displayName: string;
+        printArea: {
+          x_px: number;
+          y_px: number;
+          width_px: number;
+          height_px: number;
+          dpi: number;
+        };
+        template: {
+          url: string;
+          sourceWidthPx: number;
+          sourceHeightPx: number;
+        };
+      }
+    >
+  >;
   colors: Record<
     string,
     {
@@ -148,17 +150,22 @@ export interface ListingProduct {
 export interface ListingState {
   listing: {
     id: string | null;
-    designs: Record<string, {
-      designR2Key: string;
-      placement: NormalizedPlacement;
-    }> | null;
+    title: string | null;
+    description: string | null;
+    designs: Record<
+      string,
+      {
+        designR2Key: string;
+        placement: NormalizedPlacement;
+      }
+    > | null;
     products: ListingProduct[];
-    showForm: boolean;
   };
 }
 
 export interface ListingActions {
   createListing: () => void;
+  updateListingDetails: (title: string, description?: string) => void;
   addProduct: (baseSkuId: string, colors?: string[]) => void;
   updateProduct: (
     baseSkuId: string,
@@ -168,7 +175,6 @@ export interface ListingActions {
   getProduct: (baseSkuId: string) => ListingProduct | null;
   hasProducts: () => boolean;
   getProductCount: () => number;
-  setShowForm: (show: boolean) => void;
   clearListing: () => void;
 
   generateCatalogPreviews: () => Promise<void>;
@@ -199,6 +205,7 @@ export interface ProductDesignStore extends EditorSlice, ListingSlice {
     currentStep: "pick" | "editor" | "listing" | "details";
     sessionStarted: number;
     shouldCleanup: boolean;
+    initialBase: string | null;
   };
 
   prefetchCatalogProducts: () => Promise<void>;

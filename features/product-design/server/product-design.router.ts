@@ -2,7 +2,13 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq, ilike, inArray, or, type SQL, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import z from "zod";
-import { getPublicUrl } from "@/lib/r2";
+import {
+  getPublicUrl,
+  downloadFile,
+  uploadFile,
+  generateKey,
+  R2_PREFIXES,
+} from "@/lib/r2";
 import { db } from "@/server/db";
 import {
   baseSkuAttributeRules,
@@ -18,11 +24,18 @@ import {
   attributeValues,
   categories,
 } from "@/server/db/schema/catalog";
+import {
+  creatorListings,
+  products,
+  productVariants,
+  variantAttributeValues,
+} from "@/server/db/schema/products";
 import { publicProcedure } from "@/trpc/init";
 import { CategoryNotFoundError } from "../types/errors.types";
 import type { CachedProduct } from "../types/store.types";
 import { mockupGeneratorRouter } from "./mockup.router";
 import { productSearchFiltersSchema } from "./schema";
+import { MockupGenerator } from "./mockup-generator";
 
 const like = (q: string) => `%${q.trim()}%`;
 
@@ -209,9 +222,9 @@ export const productDesignRouter = {
         if (input.excludeIds && input.excludeIds.length > 0) {
           conditions.push(
             sql`${baseSkus.id} NOT IN (${sql.join(
-              input.excludeIds.map(id => sql`${id}`),
-              sql`, `
-            )})`
+              input.excludeIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
           );
         }
 
@@ -728,6 +741,364 @@ export const productDesignRouter = {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to fetch products for pick page",
+          cause: err,
+        });
+      }
+    }),
+
+  publishListing: publicProcedure
+    .input(
+      z.object({
+        creatorId: z.uuid(),
+        listing: z.object({
+          title: z.string().min(1, "Title is required"),
+          description: z.string().optional(),
+          designs: z.record(
+            z.string(),
+            z.object({
+              designR2Key: z.string(),
+              placement: z.object({
+                left: z.number(),
+                top: z.number(),
+                width: z.number(),
+                height: z.number(),
+                rotation: z.number(),
+                relativeMidXOffset: z.number(),
+                relativeMidYOffset: z.number(),
+              }),
+            }),
+          ),
+          products: z
+            .array(
+              z.object({
+                baseSkuId: z.uuid(),
+                price: z.number().positive(),
+                colors: z
+                  .array(z.uuid())
+                  .min(1, "At least one color is required"),
+                featuredColorId: z.uuid().nullable(),
+              }),
+            )
+            .min(1, "At least one product is required"),
+        }),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const startTime = Date.now();
+
+      try {
+        const result = await db.transaction(async (tx) => {
+          // Generate unique slug from title
+          const baseSlug = input.listing.title
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, "")
+            .replace(/\s+/g, "-")
+            .substring(0, 50);
+
+          const timestamp = Date.now().toString(36);
+          const slug = `${baseSlug}-${timestamp}`;
+
+          // Extract design data
+          const frontDesign = input.listing.designs.front;
+          const backDesign = input.listing.designs.back;
+
+          // Create creator listing
+          const [listingRecord] = await tx
+            .insert(creatorListings)
+            .values({
+              creatorId: input.creatorId,
+              title: input.listing.title,
+              slug: slug,
+              status: "published",
+              publishedAt: new Date(),
+              frontDesignR2Key: frontDesign?.designR2Key || null,
+              frontPlacement: frontDesign?.placement || null,
+              backDesignR2Key: backDesign?.designR2Key || null,
+              backPlacement: backDesign?.placement || null,
+              metaTitle: input.listing.title,
+              metaDescription: input.listing.description || null,
+            })
+            .returning({ id: creatorListings.id });
+
+          const listingId = listingRecord.id;
+
+          // Process each product in the listing
+          const createdProducts: string[] = [];
+
+          for (const productData of input.listing.products) {
+            // Create product record
+            const [productRecord] = await tx
+              .insert(products)
+              .values({
+                listingId: listingId,
+                baseSkuId: productData.baseSkuId,
+                price: BigInt(Math.round(productData.price)),
+              })
+              .returning({ id: products.id });
+
+            const productId = productRecord.id;
+            createdProducts.push(productId);
+
+            // Get base SKU data with views and templates
+            const baseSkuData = await tx
+              .select({
+                baseId: baseSkus.id,
+                baseName: baseSkus.name,
+                viewId: baseSkuViews.id,
+                viewCode: baseSkuViews.code,
+                viewDisplayName: baseSkuViews.displayName,
+                sourceWidthPx: baseSkuViews.sourceWidthPx,
+                sourceHeightPx: baseSkuViews.sourceHeightPx,
+                printAreaXPx: baseSkuPrintAreas.xPx,
+                printAreaYPx: baseSkuPrintAreas.yPx,
+                printAreaWidthPx: baseSkuPrintAreas.widthPx,
+                printAreaHeightPx: baseSkuPrintAreas.heightPx,
+                printAreaDpi: baseSkuPrintAreas.dpi,
+                templateR2Key: baseSkuMockups.r2Key,
+              })
+              .from(baseSkus)
+              .innerJoin(baseSkuViews, eq(baseSkus.id, baseSkuViews.baseSkuId))
+              .leftJoin(
+                baseSkuPrintAreas,
+                eq(baseSkuViews.id, baseSkuPrintAreas.viewId),
+              )
+              .leftJoin(
+                baseSkuMockups,
+                and(
+                  eq(baseSkuMockups.baseSkuId, baseSkus.id),
+                  eq(baseSkuMockups.viewId, baseSkuViews.id),
+                  eq(baseSkuMockups.purpose, "editor_background"),
+                ),
+              )
+              .where(eq(baseSkus.id, productData.baseSkuId));
+
+            // Get color data
+            const colorData = await tx
+              .select({
+                colorId: attributeValues.id,
+                hexColor: attributeValues.hexColor,
+              })
+              .from(attributeValues)
+              .where(inArray(attributeValues.id, productData.colors));
+
+            const colorMap = new Map(
+              colorData.map((c) => [c.colorId, c.hexColor]),
+            );
+
+            // Group views by code
+            const viewsByCode = new Map<string, (typeof baseSkuData)[0]>();
+            for (const view of baseSkuData) {
+              viewsByCode.set(view.viewCode, view);
+            }
+
+            // Create variants for each selected color
+            for (const colorId of productData.colors) {
+              const isFeatured =
+                colorId === productData.featuredColorId ||
+                (productData.colors[0] === colorId &&
+                  !productData.featuredColorId);
+
+              const comboHash = `${productId.substring(0, 8)}_${colorId.substring(0, 8)}`;
+              const sku = `P-${comboHash.toUpperCase()}`;
+
+              // Generate mockups for front and back views
+              let primaryMockupR2Key = null;
+              let secondaryMockupR2Key = null;
+
+              // Generate front mockup
+              const frontView = viewsByCode.get("front");
+              if (frontView?.templateR2Key) {
+                try {
+                  const mockup = await MockupGenerator.generateMockup({
+                    designBuffer: await downloadFile(
+                      "PUBLIC",
+                      frontDesign.designR2Key,
+                    ),
+                    templateBuffer: await downloadFile(
+                      "PUBLIC",
+                      frontView.templateR2Key,
+                    ),
+                    backgroundColor: colorMap.get(colorId) || "#FFFFFF",
+                    templateSize: {
+                      width: frontView.sourceWidthPx,
+                      height: frontView.sourceHeightPx,
+                    },
+                    printArea: {
+                      x_px: frontView.printAreaXPx || 0,
+                      y_px: frontView.printAreaYPx || 0,
+                      width_px: frontView.printAreaWidthPx || 300,
+                      height_px: frontView.printAreaHeightPx || 300,
+                      dpi: frontView.printAreaDpi || 300,
+                    },
+                    placement: frontDesign?.placement || null,
+                    outputFormat: "png",
+                    quality: 90,
+                  });
+
+                  // Upload to R2 PUBLIC bucket
+                  const mockupKey = generateKey(
+                    R2_PREFIXES.MOCKUPS,
+                    `${listingId}/${productId}_${colorId}_front.png`,
+                  );
+
+                  await uploadFile("PUBLIC", {
+                    key: mockupKey,
+                    body: mockup.mockupBuffer,
+                    contentType: "image/png",
+                    metadata: {
+                      listingId,
+                      productId,
+                      colorId,
+                      view: "front",
+                    },
+                  });
+
+                  primaryMockupR2Key = mockupKey;
+                } catch (error) {
+                  console.error(
+                    `Failed to generate front mockup for ${sku}:`,
+                    error,
+                  );
+                }
+              }
+
+              // Generate back mockup if design and template exist
+              const backView = viewsByCode.get("back");
+              if (backDesign?.designR2Key && backView?.templateR2Key) {
+                try {
+                  const mockup = await MockupGenerator.generateMockup({
+                    designBuffer: await downloadFile(
+                      "PRIVATE",
+                      backDesign.designR2Key,
+                    ),
+                    templateBuffer: await downloadFile(
+                      "PUBLIC",
+                      backView.templateR2Key,
+                    ),
+                    backgroundColor: colorMap.get(colorId) || "#FFFFFF",
+                    templateSize: {
+                      width: backView.sourceWidthPx,
+                      height: backView.sourceHeightPx,
+                    },
+                    printArea: {
+                      x_px: backView.printAreaXPx || 0,
+                      y_px: backView.printAreaYPx || 0,
+                      width_px: backView.printAreaWidthPx || 300,
+                      height_px: backView.printAreaHeightPx || 300,
+                      dpi: backView.printAreaDpi || 300,
+                    },
+                    placement: backDesign.placement,
+                    outputFormat: "png",
+                    quality: 90,
+                  });
+
+                  const mockupKey = generateKey(
+                    R2_PREFIXES.MOCKUPS,
+                    `${listingId}/${productId}_${colorId}_back.png`,
+                  );
+
+                  await uploadFile("PUBLIC", {
+                    key: mockupKey,
+                    body: mockup.mockupBuffer,
+                    contentType: "image/png",
+                    metadata: {
+                      listingId,
+                      productId,
+                      colorId,
+                      view: "back",
+                    },
+                  });
+
+                  secondaryMockupR2Key = mockupKey;
+                } catch (error) {
+                  console.error(
+                    `Failed to generate back mockup for ${sku}:`,
+                    error,
+                  );
+                }
+              }
+
+              // Create product variant with mockup keys
+              const [variantRecord] = await tx
+                .insert(productVariants)
+                .values({
+                  productId: productId,
+                  sku: sku,
+                  comboHash: comboHash,
+                  price: BigInt(Math.round(productData.price)),
+                  primaryMockupR2Key,
+                  secondaryMockupR2Key,
+                })
+                .returning({ id: productVariants.id });
+
+              const variantId = variantRecord.id;
+
+              // Find color attribute ID and link variant to color
+              const [colorAttribute] = await tx
+                .select({ id: attributes.id })
+                .from(attributes)
+                .where(eq(attributes.code, "color"))
+                .limit(1);
+
+              if (colorAttribute) {
+                await tx.insert(variantAttributeValues).values({
+                  variantId: variantId,
+                  attributeId: colorAttribute.id,
+                  attributeValueId: colorId,
+                });
+              }
+            }
+          }
+
+          return {
+            listingId,
+            slug,
+            createdProducts,
+          };
+        });
+
+        const elapsed = Date.now() - startTime;
+        console.log(
+          `[publishListing] Success in ${elapsed}ms - listingId=${result.listingId}`,
+        );
+
+        return {
+          success: true,
+          listingId: result.listingId,
+          slug: result.slug,
+          url: `/creators/${input.creatorId}/${result.slug}`,
+        };
+      } catch (err) {
+        const elapsed = Date.now() - startTime;
+        console.error(`[publishListing] FAILED after ${elapsed}ms`, {
+          error: err,
+          creatorId: input.creatorId,
+          title: input.listing.title,
+        });
+
+        if (err instanceof TRPCError) throw err;
+
+        // Handle common database constraint errors
+        if (err && typeof err === "object" && "code" in err) {
+          if (err.code === "23505") {
+            // Unique constraint violation
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "A listing with this title already exists",
+            });
+          }
+          if (err.code === "23503") {
+            // Foreign key constraint violation
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Invalid creator ID or product ID",
+            });
+          }
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to publish listing",
           cause: err,
         });
       }

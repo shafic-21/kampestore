@@ -15,9 +15,15 @@ const ProductEditor = dynamic(() => import("../components/editor-canvas"), {
 
 interface ProductEditorViewProps {
   baseSkuId: string;
+  initialSkuId: string;
+  isEditMode: boolean;
 }
 
-export function ProductEditorView({ baseSkuId }: ProductEditorViewProps) {
+export function ProductEditorView({
+  baseSkuId,
+  initialSkuId,
+  isEditMode
+}: ProductEditorViewProps) {
   const cachedProduct = useProductDesignStore(
     (state) => state.bases.catalog[baseSkuId],
   );
@@ -69,7 +75,6 @@ export function ProductEditorView({ baseSkuId }: ProductEditorViewProps) {
   ]);
 
   useEffect(() => {
-
     if (currentBaseSkuId === baseSkuId && cachedProduct) {
       const timer = setTimeout(() => {
         console.log("Prefetching catalog products in background...");
@@ -123,7 +128,10 @@ export function ProductEditorView({ baseSkuId }: ProductEditorViewProps) {
       <EditorSidePanel variant="inset" />
       <SidebarInset className="bg-transparent">
         {/*<div className="h-full">*/}
-        <ProductEditor />
+        <ProductEditor
+          initialSkuId={initialSkuId}
+          isEditMode={isEditMode}
+        />
         {/*</div>*/}
       </SidebarInset>
     </SidebarProvider>
