@@ -58,10 +58,10 @@ export function ListingSidePanel({ initialSkuId, ...props }: ListingSidePanelPro
   const publishListingMutation = trpc.productDesign.publishListing.useMutation({
     onSuccess: (result) => {
       console.log("Listing published successfully:", result);
-      // Clear store and redirect to published listing
+      // Clear store and redirect to congratulations page with listing slug
       clearListing();
       resetEditor();
-      router.push(result.url);
+      router.push(`/product-design/congratulations?listing=${result.slug}`);
     },
     onError: (error) => {
       console.error("Failed to publish listing:", error);
