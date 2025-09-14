@@ -2,7 +2,6 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/trpc/routers/_app";
 import type { CachedProduct } from "../types/store.types";
 
-// Derive type from tRPC procedure output
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type ServerEditorData = RouterOutput["productDesign"]["initializeStore"];
 
@@ -62,6 +61,8 @@ export function transformToCache(data: ServerEditorData): CachedProduct {
     cost: baseSku.cost,
     views,
     colors,
+    placements: {},
+    previews: {},
     generatedPreview: null,
   };
 }
