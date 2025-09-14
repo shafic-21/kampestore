@@ -143,18 +143,34 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
   getProductCount: () => get().listing.products.length,
 
   clearListing: () => {
+    // Clean up all generated preview blob URLs
     Object.values(get().bases.catalog).forEach((cachedProduct) => {
       if (cachedProduct.generatedPreview?.imageUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(cachedProduct.generatedPreview.imageUrl);
       }
+      // Also clean up any blob URLs in the previews object
+      if (cachedProduct.previews) {
+        Object.values(cachedProduct.previews).forEach((viewPreviews) => {
+          Object.values(viewPreviews).forEach((previewUrl) => {
+            if (typeof previewUrl === 'string' && previewUrl.startsWith("blob:")) {
+              URL.revokeObjectURL(previewUrl);
+            }
+          });
+        });
+      }
     });
+
     set((state) => ({
       bases: {
         ...state.bases,
         catalog: Object.fromEntries(
           Object.entries(state.bases.catalog).map(([id, product]) => [
             id,
-            { ...product, generatedPreview: null },
+            {
+              ...product,
+              generatedPreview: null,
+              previews: {} // Clear all previews
+            },
           ]),
         ),
       },
@@ -163,6 +179,8 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
         id: null,
         designs: null,
         products: [],
+        title: null,
+        description: null,
       },
     }));
   },

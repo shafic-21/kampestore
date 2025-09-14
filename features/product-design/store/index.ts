@@ -152,8 +152,10 @@ export const useProductDesignStore = create<ProductDesignStore>()(
             set((state) => ({
               meta: {
                 ...state.meta,
+                currentStep: "pick",
                 shouldCleanup: true,
                 lastSaved: Date.now(),
+                initialBase: null,
               },
             }));
           },
