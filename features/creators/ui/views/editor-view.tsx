@@ -6,15 +6,15 @@ import { EditorProvider } from "../components/editor/editor-provider";
 import { EditorSidePanel } from "../components/editor/editor-side-panel";
 
 const ProductEditor = dynamic(
-  () => import("../components/editor/editor-canvas"),
-  {
-    ssr: false,
-    loading: () => <div>Loading Canvas...</div>,
-  },
+	() => import("../components/editor/editor-canvas"),
+	{
+		ssr: false,
+		loading: () => <div>Loading Canvas...</div>,
+	},
 );
 
 interface EditorViewProps {
-  baseSkuId: string;
+	baseSkuId: string;
 }
 
 /**
@@ -24,22 +24,22 @@ interface EditorViewProps {
  * This ensures the sidebar has access to initialized store data.
  */
 export const EditorView = ({ baseSkuId }: EditorViewProps) => {
-  return (
-    <EditorProvider baseSkuId={baseSkuId}>
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "calc(var(--spacing) * 56)",
-          } as React.CSSProperties
-        }
-      >
-        <EditorSidePanel variant="inset" />
-        <SidebarInset>
-          <div className="h-full">
-            <ProductEditor />
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    </EditorProvider>
-  );
+	return (
+		<EditorProvider baseSkuId={baseSkuId}>
+			<SidebarProvider
+				style={
+					{
+						"--sidebar-width": "calc(var(--spacing) * 56)",
+					} as React.CSSProperties
+				}
+			>
+				<EditorSidePanel variant="inset" />
+				<SidebarInset>
+					<div className="h-full">
+						<ProductEditor />
+					</div>
+				</SidebarInset>
+			</SidebarProvider>
+		</EditorProvider>
+	);
 };
