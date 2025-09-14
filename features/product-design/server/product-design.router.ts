@@ -8,6 +8,7 @@ import {
   uploadFile,
   generateKey,
   R2_PREFIXES,
+  deleteR2File,
 } from "@/lib/r2";
 import { db } from "@/server/db";
 import {
@@ -32,7 +33,7 @@ import {
 } from "@/server/db/schema/products";
 import { publicProcedure } from "@/trpc/init";
 import { CategoryNotFoundError } from "../types/errors.types";
-import type { CachedProduct } from "../types/store.types";
+import type { CachedProduct, NormalizedPlacement } from "../types/store.types";
 import { mockupGeneratorRouter } from "./mockup.router";
 import { productSearchFiltersSchema } from "./schema";
 import { MockupGenerator } from "./mockup-generator";
@@ -400,6 +401,8 @@ export const productDesignRouter = {
             code: product.code,
             name: product.name,
             cost: Number(product.cost),
+            placements: {},
+            previews: {},
             generatedPreview: null,
             views: viewsObject,
             colors: colorsObject,
@@ -757,15 +760,6 @@ export const productDesignRouter = {
             z.string(),
             z.object({
               designR2Key: z.string(),
-              placement: z.object({
-                left: z.number(),
-                top: z.number(),
-                width: z.number(),
-                height: z.number(),
-                rotation: z.number(),
-                relativeMidXOffset: z.number(),
-                relativeMidYOffset: z.number(),
-              }),
             }),
           ),
           products: z
@@ -777,6 +771,20 @@ export const productDesignRouter = {
                   .array(z.uuid())
                   .min(1, "At least one color is required"),
                 featuredColorId: z.uuid().nullable(),
+                placements: z
+                  .record(
+                    z.string(), // view code (front/back)
+                    z.object({
+                      left: z.number(),
+                      top: z.number(),
+                      width: z.number(),
+                      height: z.number(),
+                      rotation: z.number(),
+                      relativeMidXOffset: z.number(),
+                      relativeMidYOffset: z.number(),
+                    }),
+                  )
+                  .optional(),
               }),
             )
             .min(1, "At least one product is required"),
@@ -786,61 +794,66 @@ export const productDesignRouter = {
     .mutation(async ({ input }) => {
       const startTime = Date.now();
 
+      // Track created resources for cleanup on failure
+      let createdListingId: string | null = null;
+      const createdProductIds: string[] = [];
+      const createdVariantIds: string[] = [];
+      const uploadedMockupKeys: string[] = [];
+
       try {
-        const result = await db.transaction(async (tx) => {
-          // Generate unique slug from title
-          const baseSlug = input.listing.title
-            .toLowerCase()
-            .replace(/[^a-z0-9\s-]/g, "")
-            .replace(/\s+/g, "-")
-            .substring(0, 50);
+        // Generate unique slug from title
+        const baseSlug = input.listing.title
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .substring(0, 50);
 
-          const timestamp = Date.now().toString(36);
-          const slug = `${baseSlug}-${timestamp}`;
+        const timestamp = Date.now().toString(36);
+        const slug = `${baseSlug}-${timestamp}`;
 
-          // Extract design data
-          const frontDesign = input.listing.designs.front;
-          const backDesign = input.listing.designs.back;
+        // Extract design data
+        const frontDesign = input.listing.designs.front;
+        const backDesign = input.listing.designs.back;
 
-          // Create creator listing
-          const [listingRecord] = await tx
-            .insert(creatorListings)
-            .values({
-              creatorId: input.creatorId,
-              title: input.listing.title,
-              slug: slug,
-              status: "published",
-              publishedAt: new Date(),
-              frontDesignR2Key: frontDesign?.designR2Key || null,
-              frontPlacement: frontDesign?.placement || null,
-              backDesignR2Key: backDesign?.designR2Key || null,
-              backPlacement: backDesign?.placement || null,
-              metaTitle: input.listing.title,
-              metaDescription: input.listing.description || null,
-            })
-            .returning({ id: creatorListings.id });
+        // Create creator listing (no transaction)
+        const [listingRecord] = await db
+          .insert(creatorListings)
+          .values({
+            creatorId: input.creatorId,
+            title: input.listing.title,
+            slug: slug,
+            status: "published",
+            publishedAt: new Date(),
+            frontDesignR2Key: frontDesign?.designR2Key || null,
+            backDesignR2Key: backDesign?.designR2Key || null,
+            metaTitle: input.listing.title,
+            metaDescription: input.listing.description || null,
+          })
+          .returning({ id: creatorListings.id });
 
-          const listingId = listingRecord.id;
+        createdListingId = listingRecord.id;
+        const listingId = listingRecord.id;
 
-          // Process each product in the listing
-          const createdProducts: string[] = [];
-
-          for (const productData of input.listing.products) {
-            // Create product record
-            const [productRecord] = await tx
+        // Process each product in the listing
+        for (const productData of input.listing.products) {
+          try {
+            // Create product record with placement data
+            const [productRecord] = await db
               .insert(products)
               .values({
                 listingId: listingId,
                 baseSkuId: productData.baseSkuId,
                 price: BigInt(Math.round(productData.price)),
+                frontPlacement: productData.placements?.front || null,
+                backPlacement: productData.placements?.back || null,
               })
               .returning({ id: products.id });
 
             const productId = productRecord.id;
-            createdProducts.push(productId);
+            createdProductIds.push(productId);
 
             // Get base SKU data with views and templates
-            const baseSkuData = await tx
+            const baseSkuData = await db
               .select({
                 baseId: baseSkus.id,
                 baseName: baseSkus.name,
@@ -873,7 +886,7 @@ export const productDesignRouter = {
               .where(eq(baseSkus.id, productData.baseSkuId));
 
             // Get color data
-            const colorData = await tx
+            const colorData = await db
               .select({
                 colorId: attributeValues.id,
                 hexColor: attributeValues.hexColor,
@@ -893,180 +906,203 @@ export const productDesignRouter = {
 
             // Create variants for each selected color
             for (const colorId of productData.colors) {
-              const isFeatured =
-                colorId === productData.featuredColorId ||
-                (productData.colors[0] === colorId &&
-                  !productData.featuredColorId);
+              try {
+                const isFeatured =
+                  colorId === productData.featuredColorId ||
+                  (productData.colors[0] === colorId &&
+                    !productData.featuredColorId);
 
-              const comboHash = `${productId.substring(0, 8)}_${colorId.substring(0, 8)}`;
-              const sku = `P-${comboHash.toUpperCase()}`;
+                const comboHash = `${productId.substring(0, 8)}_${colorId.substring(0, 8)}`;
+                const sku = `P-${comboHash.toUpperCase()}`;
 
-              // Generate mockups for front and back views
-              let primaryMockupR2Key = null;
-              let secondaryMockupR2Key = null;
+                // Generate mockups for front and back views
+                let primaryMockupR2Key = null;
+                let secondaryMockupR2Key = null;
 
-              // Generate front mockup
-              const frontView = viewsByCode.get("front");
-              if (frontView?.templateR2Key) {
-                try {
-                  const mockup = await MockupGenerator.generateMockup({
-                    designBuffer: await downloadFile(
-                      "PUBLIC",
-                      frontDesign.designR2Key,
-                    ),
-                    templateBuffer: await downloadFile(
-                      "PUBLIC",
-                      frontView.templateR2Key,
-                    ),
-                    backgroundColor: colorMap.get(colorId) || "#FFFFFF",
-                    templateSize: {
-                      width: frontView.sourceWidthPx,
-                      height: frontView.sourceHeightPx,
-                    },
-                    printArea: {
-                      x_px: frontView.printAreaXPx || 0,
-                      y_px: frontView.printAreaYPx || 0,
-                      width_px: frontView.printAreaWidthPx || 300,
-                      height_px: frontView.printAreaHeightPx || 300,
-                      dpi: frontView.printAreaDpi || 300,
-                    },
-                    placement: frontDesign?.placement || null,
-                    outputFormat: "png",
-                    quality: 90,
-                  });
+                // Generate front mockup
+                const frontView = viewsByCode.get("front");
+                if (frontDesign?.designR2Key && frontView?.templateR2Key) {
+                  try {
+                    const mockup = await MockupGenerator.generateMockup({
+                      designBuffer: await downloadFile(
+                        "PUBLIC",
+                        frontDesign.designR2Key,
+                      ),
+                      templateBuffer: await downloadFile(
+                        "PUBLIC",
+                        frontView.templateR2Key,
+                      ),
+                      backgroundColor: colorMap.get(colorId) || "#FFFFFF",
+                      templateSize: {
+                        width: frontView.sourceWidthPx,
+                        height: frontView.sourceHeightPx,
+                      },
+                      printArea: {
+                        x_px: frontView.printAreaXPx || 0,
+                        y_px: frontView.printAreaYPx || 0,
+                        width_px: frontView.printAreaWidthPx || 300,
+                        height_px: frontView.printAreaHeightPx || 300,
+                        dpi: frontView.printAreaDpi || 300,
+                      },
+                      placement: productData.placements
+                        ?.front as NormalizedPlacement,
+                      outputFormat: "png",
+                      quality: 90,
+                    });
 
-                  // Upload to R2 PUBLIC bucket
-                  const mockupKey = generateKey(
-                    R2_PREFIXES.MOCKUPS,
-                    `${listingId}/${productId}_${colorId}_front.png`,
-                  );
+                    // Upload to R2 PUBLIC bucket
+                    const mockupKey = generateKey(
+                      R2_PREFIXES.MOCKUPS,
+                      `${listingId}/${productId}_${colorId}_front.png`,
+                    );
 
-                  await uploadFile("PUBLIC", {
-                    key: mockupKey,
-                    body: mockup.mockupBuffer,
-                    contentType: "image/png",
-                    metadata: {
-                      listingId,
-                      productId,
-                      colorId,
-                      view: "front",
-                    },
-                  });
+                    await uploadFile("PUBLIC", {
+                      key: mockupKey,
+                      body: mockup.mockupBuffer,
+                      contentType: "image/png",
+                      metadata: {
+                        listingId,
+                        productId,
+                        colorId,
+                        view: "front",
+                      },
+                    });
 
-                  primaryMockupR2Key = mockupKey;
-                } catch (error) {
-                  console.error(
-                    `Failed to generate front mockup for ${sku}:`,
-                    error,
-                  );
+                    primaryMockupR2Key = mockupKey;
+                    uploadedMockupKeys.push(mockupKey);
+                  } catch (error) {
+                    console.error(
+                      `Failed to generate front mockup for ${sku}:`,
+                      error,
+                    );
+                  }
                 }
-              }
 
-              // Generate back mockup if design and template exist
-              const backView = viewsByCode.get("back");
-              if (backDesign?.designR2Key && backView?.templateR2Key) {
-                try {
-                  const mockup = await MockupGenerator.generateMockup({
-                    designBuffer: await downloadFile(
-                      "PRIVATE",
-                      backDesign.designR2Key,
-                    ),
-                    templateBuffer: await downloadFile(
-                      "PUBLIC",
-                      backView.templateR2Key,
-                    ),
-                    backgroundColor: colorMap.get(colorId) || "#FFFFFF",
-                    templateSize: {
-                      width: backView.sourceWidthPx,
-                      height: backView.sourceHeightPx,
-                    },
-                    printArea: {
-                      x_px: backView.printAreaXPx || 0,
-                      y_px: backView.printAreaYPx || 0,
-                      width_px: backView.printAreaWidthPx || 300,
-                      height_px: backView.printAreaHeightPx || 300,
-                      dpi: backView.printAreaDpi || 300,
-                    },
-                    placement: backDesign.placement,
-                    outputFormat: "png",
-                    quality: 90,
-                  });
+                // Generate back mockup if design and template exist
+                const backView = viewsByCode.get("back");
+                if (backDesign?.designR2Key && backView?.templateR2Key) {
+                  try {
+                    const mockup = await MockupGenerator.generateMockup({
+                      designBuffer: await downloadFile(
+                        "PUBLIC",
+                        backDesign.designR2Key,
+                      ),
+                      templateBuffer: await downloadFile(
+                        "PUBLIC",
+                        backView.templateR2Key,
+                      ),
+                      backgroundColor: colorMap.get(colorId) || "#FFFFFF",
+                      templateSize: {
+                        width: backView.sourceWidthPx,
+                        height: backView.sourceHeightPx,
+                      },
+                      printArea: {
+                        x_px: backView.printAreaXPx || 0,
+                        y_px: backView.printAreaYPx || 0,
+                        width_px: backView.printAreaWidthPx || 300,
+                        height_px: backView.printAreaHeightPx || 300,
+                        dpi: backView.printAreaDpi || 300,
+                      },
+                      placement: productData.placements
+                        ?.back as NormalizedPlacement,
+                      outputFormat: "png",
+                      quality: 90,
+                    });
 
-                  const mockupKey = generateKey(
-                    R2_PREFIXES.MOCKUPS,
-                    `${listingId}/${productId}_${colorId}_back.png`,
-                  );
+                    const mockupKey = generateKey(
+                      R2_PREFIXES.MOCKUPS,
+                      `${listingId}/${productId}_${colorId}_back.png`,
+                    );
 
-                  await uploadFile("PUBLIC", {
-                    key: mockupKey,
-                    body: mockup.mockupBuffer,
-                    contentType: "image/png",
-                    metadata: {
-                      listingId,
-                      productId,
-                      colorId,
-                      view: "back",
-                    },
-                  });
+                    await uploadFile("PUBLIC", {
+                      key: mockupKey,
+                      body: mockup.mockupBuffer,
+                      contentType: "image/png",
+                      metadata: {
+                        listingId,
+                        productId,
+                        colorId,
+                        view: "back",
+                      },
+                    });
 
-                  secondaryMockupR2Key = mockupKey;
-                } catch (error) {
-                  console.error(
-                    `Failed to generate back mockup for ${sku}:`,
-                    error,
-                  );
+                    secondaryMockupR2Key = mockupKey;
+                    uploadedMockupKeys.push(mockupKey);
+                  } catch (error) {
+                    console.error(
+                      `Failed to generate back mockup for ${sku}:`,
+                      error,
+                    );
+                  }
                 }
-              }
 
-              // Create product variant with mockup keys
-              const [variantRecord] = await tx
-                .insert(productVariants)
-                .values({
-                  productId: productId,
-                  sku: sku,
-                  comboHash: comboHash,
-                  price: BigInt(Math.round(productData.price)),
-                  primaryMockupR2Key,
-                  secondaryMockupR2Key,
-                })
-                .returning({ id: productVariants.id });
+                // Create product variant with mockup keys
+                const [variantRecord] = await db
+                  .insert(productVariants)
+                  .values({
+                    productId: productId,
+                    sku: sku,
+                    comboHash: comboHash,
+                    price: BigInt(Math.round(productData.price)),
+                    primaryMockupR2Key,
+                    secondaryMockupR2Key,
+                  })
+                  .returning({ id: productVariants.id });
 
-              const variantId = variantRecord.id;
+                const variantId = variantRecord.id;
+                createdVariantIds.push(variantId);
 
-              // Find color attribute ID and link variant to color
-              const [colorAttribute] = await tx
-                .select({ id: attributes.id })
-                .from(attributes)
-                .where(eq(attributes.code, "color"))
-                .limit(1);
+                // Find color attribute ID and link variant to color
+                const [colorAttribute] = await db
+                  .select({ id: attributes.id })
+                  .from(attributes)
+                  .where(eq(attributes.code, "color"))
+                  .limit(1);
 
-              if (colorAttribute) {
-                await tx.insert(variantAttributeValues).values({
-                  variantId: variantId,
-                  attributeId: colorAttribute.id,
-                  attributeValueId: colorId,
-                });
+                if (colorAttribute) {
+                  await db.insert(variantAttributeValues).values({
+                    variantId: variantId,
+                    attributeId: colorAttribute.id,
+                    attributeValueId: colorId,
+                  });
+                }
+              } catch (variantError) {
+                console.error(
+                  `Failed to create variant for color ${colorId}:`,
+                  variantError,
+                );
+                // Continue with next variant instead of failing entire listing
               }
             }
+          } catch (productError) {
+            console.error(
+              `Failed to create product ${productData.baseSkuId}:`,
+              productError,
+            );
+            // Continue with next product instead of failing entire listing
           }
+        }
 
-          return {
-            listingId,
-            slug,
-            createdProducts,
-          };
-        });
+        // Check if any products were successfully created
+        if (createdProductIds.length === 0) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to create any products for the listing",
+          });
+        }
 
         const elapsed = Date.now() - startTime;
         console.log(
-          `[publishListing] Success in ${elapsed}ms - listingId=${result.listingId}`,
+          `[publishListing] Success in ${elapsed}ms - listingId=${listingId}`,
         );
 
         return {
           success: true,
-          listingId: result.listingId,
-          slug: result.slug,
-          url: `/creators/${input.creatorId}/${result.slug}`,
+          listingId: listingId,
+          slug: slug,
+          url: `/creators/${input.creatorId}/${slug}`,
+          createdProducts: createdProductIds.length,
+          totalProducts: input.listing.products.length,
         };
       } catch (err) {
         const elapsed = Date.now() - startTime;
@@ -1075,6 +1111,50 @@ export const productDesignRouter = {
           creatorId: input.creatorId,
           title: input.listing.title,
         });
+
+        // Cleanup on failure
+        try {
+          // Delete variants
+          if (createdVariantIds.length > 0) {
+            await db
+              .delete(variantAttributeValues)
+              .where(
+                inArray(variantAttributeValues.variantId, createdVariantIds),
+              );
+
+            await db
+              .delete(productVariants)
+              .where(inArray(productVariants.id, createdVariantIds));
+          }
+
+          // Delete products
+          if (createdProductIds.length > 0) {
+            await db
+              .delete(products)
+              .where(inArray(products.id, createdProductIds));
+          }
+
+          // Delete listing
+          if (createdListingId) {
+            await db
+              .delete(creatorListings)
+              .where(eq(creatorListings.id, createdListingId));
+          }
+
+          // Delete uploaded mockups from R2
+          for (const mockupKey of uploadedMockupKeys) {
+            try {
+              await deleteR2File("PUBLIC", mockupKey);
+            } catch (deleteError) {
+              console.error(
+                `Failed to delete mockup ${mockupKey}:`,
+                deleteError,
+              );
+            }
+          }
+        } catch (cleanupError) {
+          console.error("Failed to cleanup after error:", cleanupError);
+        }
 
         if (err instanceof TRPCError) throw err;
 

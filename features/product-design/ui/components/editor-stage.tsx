@@ -58,9 +58,10 @@ export const EditorStage = ({
 	const sourceW = currentView?.template?.sourceWidthPx || 400;
 	const sourceH = currentView?.template?.sourceHeightPx || 400;
 
-	// Load images
+	// Load images - use blob URL first for instant display, fallback to R2
 	const [designImage] = useImage(
-		currentDesign?.designR2Key ? getPublicUrl(currentDesign.designR2Key) : "",
+		currentDesign?.designBlobUrl ||
+		(currentDesign?.designR2Key ? getPublicUrl(currentDesign.designR2Key) : "")
 	);
 	const mockupImage = templateEl || null;
 

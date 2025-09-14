@@ -31,7 +31,6 @@ interface ListingSidePanelProps {
 
 export function ListingSidePanel({ initialSkuId, ...props }: ListingSidePanelProps) {
   const router = useRouter();
-  const [isPublishing, setIsPublishing] = useState(false);
   const { data: session } = useSession();
 
   // Get listing data from store using individual selectors
@@ -43,6 +42,7 @@ export function ListingSidePanel({ initialSkuId, ...props }: ListingSidePanelPro
     (state) => state.listing.description,
   );
   const designs = useProductDesignStore((state) => state.listing.designs);
+  const cachedProducts = useProductDesignStore((state) => state.bases.catalog);
 
   // Get store actions
   const clearListing = useProductDesignStore((state) => state.clearListing);
@@ -54,10 +54,25 @@ export function ListingSidePanel({ initialSkuId, ...props }: ListingSidePanelPro
       enabled: !!session?.user?.id,
     });
 
+  // Publish listing mutation
+  const publishListingMutation = trpc.productDesign.publishListing.useMutation({
+    onSuccess: (result) => {
+      console.log("Listing published successfully:", result);
+      // Clear store and redirect to published listing
+      clearListing();
+      resetEditor();
+      router.push(result.url);
+    },
+    onError: (error) => {
+      console.error("Failed to publish listing:", error);
+      // TODO: Add toast notification
+    },
+  });
+
   /**
    * Publish the listing with mockup generation
    */
-  const handlePublish = async () => {
+  const handlePublish = () => {
     if (!title || !hasProducts) {
       console.error("Cannot publish: missing title or products");
       return;
@@ -75,36 +90,21 @@ export function ListingSidePanel({ initialSkuId, ...props }: ListingSidePanelPro
       return;
     }
 
-    setIsPublishing(true);
-
-    try {
-      const result = await trpc.productDesign.publishListing.mutate({
-        creatorId: creatorProfile.id,
-        listing: {
-          title,
-          description: description || undefined,
-          designs: designs || {},
-          products: products.map((p) => ({
-            baseSkuId: p.baseSkuId,
-            price: p.price,
-            colors: p.colors,
-            featuredColorId: p.featuredColorId,
-          })),
-        },
-      });
-
-      console.log("Listing published successfully:", result);
-
-      // Clear store and redirect to published listing
-      clearListing();
-      resetEditor();
-      router.push(result.url);
-    } catch (error) {
-      console.error("Failed to publish listing:", error);
-      // TODO: Add toast notification
-    } finally {
-      setIsPublishing(false);
-    }
+    publishListingMutation.mutate({
+      creatorId: creatorProfile.id,
+      listing: {
+        title,
+        description: description || undefined,
+        designs: designs || {},
+        products: products.map((p) => ({
+          baseSkuId: p.baseSkuId,
+          price: p.price,
+          colors: p.colors,
+          featuredColorId: p.featuredColorId,
+          placements: cachedProducts[p.baseSkuId]?.placements || {},
+        })),
+      },
+    });
   };
 
   /**
@@ -169,13 +169,13 @@ export function ListingSidePanel({ initialSkuId, ...props }: ListingSidePanelPro
                 disabled={
                   !hasProducts ||
                   !title ||
-                  isPublishing ||
+                  publishListingMutation.isPending ||
                   creatorLoading ||
                   !session?.user?.id ||
                   !creatorProfile?.id
                 }
               >
-                {isPublishing
+                {publishListingMutation.isPending
                   ? "Publishing..."
                   : creatorLoading
                     ? "Loading..."

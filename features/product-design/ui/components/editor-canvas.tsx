@@ -72,6 +72,8 @@ const ProductEditor = ({ initialSkuId, isEditMode }: ProductEditorProps) => {
   const generateCatalogPreviews = useProductDesignStore(
     (state) => state.generateCatalogPreviews,
   );
+  const initializeEditor = useProductDesignStore((state) => state.initializeEditor);
+  const applyNormalizedPlacement = useProductDesignStore((state) => state.applyNormalizedPlacement);
 
   // ===== REFS =====
   const containerRef = useRef<HTMLDivElement>(null);
@@ -113,6 +115,19 @@ const ProductEditor = ({ initialSkuId, isEditMode }: ProductEditorProps) => {
     };
   }, [setStageSize]);
 
+  // ===== PRODUCT-SPECIFIC PLACEMENT INITIALIZATION =====
+  useEffect(() => {
+    // Only apply product placement in edit mode
+    if (!isEditMode || !initialSkuId || !base) return;
+
+    // Apply saved placement from this product to editor
+    Object.entries(base.placements || {}).forEach(([viewCode, placement]) => {
+      if (placement) {
+        console.log(`Applying saved placement for ${viewCode} view on product ${initialSkuId}`);
+        applyNormalizedPlacement(viewCode, placement);
+      }
+    });
+  }, [isEditMode, initialSkuId, base, applyNormalizedPlacement]);
 
   // ===== EVENT HANDLERS =====
   const handleFileUpload = useCallback(
@@ -137,19 +152,53 @@ const ProductEditor = ({ initialSkuId, isEditMode }: ProductEditorProps) => {
 
   const listingId = useProductDesignStore((state) => state.listing.id);
 
-  const handleContinue = useCallback(() => {
+  const handleContinue = useCallback(async () => {
     if (!currentDesign || !selectedColors.length) {
       alert("Please upload a design and select at least one color");
       return;
     }
 
-    if (!listingId && !isEditMode) {
-      createListing();
-    }
+    const getCurrentNormalizedPlacement = useProductDesignStore.getState().getCurrentNormalizedPlacement;
+    const updateProductPlacement = useProductDesignStore.getState().updateProductPlacement;
+    const generateSingleProductPreview = useProductDesignStore.getState().generateSingleProductPreview;
 
-    generateCatalogPreviews().catch((error) => {
-      console.error("Background preview generation failed:", error);
-    });
+    if (isEditMode) {
+      // Edit mode: Update only this product's placement and preview
+      const currentPlacement = getCurrentNormalizedPlacement(currentViewCode);
+      if (currentPlacement && currentBaseSkuId) {
+        console.log(`Updating placement for product ${currentBaseSkuId}`);
+        updateProductPlacement(currentBaseSkuId, currentViewCode, currentPlacement);
+
+        // Generate preview only for this edited product
+        await generateSingleProductPreview(currentBaseSkuId).catch((error) => {
+          console.error("Single product preview generation failed:", error);
+        });
+      }
+    } else {
+      // New listing mode: Create listing and set initial placements
+      if (!listingId) {
+        createListing(); // This already handles storing the initial product's placement
+
+        // Set the same placement for ALL other products in the catalog
+        const currentPlacement = getCurrentNormalizedPlacement(currentViewCode);
+        if (currentPlacement) {
+          const state = useProductDesignStore.getState();
+          const catalogProducts = Object.values(state.bases.catalog);
+
+          // Update all products to have the same initial placement
+          catalogProducts.forEach(product => {
+            if (product.id !== currentBaseSkuId) { // Skip the initial product (already set)
+              updateProductPlacement(product.id, currentViewCode, currentPlacement);
+            }
+          });
+        }
+      }
+
+      // Generate previews for all products
+      generateCatalogPreviews().catch((error) => {
+        console.error("Background preview generation failed:", error);
+      });
+    }
 
     // Navigate with the appropriate SKU
     const targetSku = initialSkuId || currentBaseSkuId;
@@ -164,6 +213,7 @@ const ProductEditor = ({ initialSkuId, isEditMode }: ProductEditorProps) => {
     isEditMode,
     initialSkuId,
     currentBaseSkuId,
+    currentViewCode,
   ]);
 
   // ===== PREVIEW MODE LOGIC =====

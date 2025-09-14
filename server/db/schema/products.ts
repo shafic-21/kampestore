@@ -33,28 +33,9 @@ export const creatorListings = pgTable(
       .default("published"),
     publishedAt: timestamp("published_at"),
 
-    // Design data at listing level
+    // Design data at listing level (shared designs)
     frontDesignR2Key: text("front_design_r2_key"),
-    frontPlacement: json("front_placement").$type<{
-      left: number;
-      top: number;
-      width: number;
-      height: number;
-      rotation: number;
-      relativeMidXOffset: number;
-      relativeMidYOffset: number;
-    }>(),
-
     backDesignR2Key: text("back_design_r2_key"),
-    backPlacement: json("back_placement").$type<{
-      left: number;
-      top: number;
-      width: number;
-      height: number;
-      rotation: number;
-      relativeMidXOffset: number;
-      relativeMidYOffset: number;
-    }>(),
 
     // SEO
     metaTitle: text("meta_title"),
@@ -89,6 +70,27 @@ export const products = pgTable(
 
     // Pricing
     price: bigint("price", { mode: "bigint" }).notNull(),
+
+    // Product-specific placement data
+    frontPlacement: json("front_placement").$type<{
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+      rotation: number;
+      relativeMidXOffset: number;
+      relativeMidYOffset: number;
+    }>(),
+
+    backPlacement: json("back_placement").$type<{
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+      rotation: number;
+      relativeMidXOffset: number;
+      relativeMidYOffset: number;
+    }>(),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

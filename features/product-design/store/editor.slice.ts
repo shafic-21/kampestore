@@ -66,43 +66,39 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 
 	uploadDesign: async (viewCode, file) => {
 		const currentBaseSkuId = get().editor.currentBaseSkuId;
+
+		if (!currentBaseSkuId) {
+			throw new Error("Base not found");
+		}
+
+		const product = get().bases.catalog[currentBaseSkuId];
+		const currentView = product.views[viewCode as "front" | "back"];
+
+		if (!currentView) {
+			throw new Error(`View ${viewCode} not found`);
+		}
+
 		try {
-			// Upload file to R2
-			const formData = new FormData();
-			formData.append("file", file);
-			formData.append("bucket", "PUBLIC");
-			formData.append("prefix", "DESIGNS");
-			formData.append("userId", get().editor.sessionId || "anonymous");
-			const uploadResponse = await fetch("/api/upload", {
-				method: "POST",
-				body: formData,
+			// Create blob URL for instant display
+			const designBlobUrl = URL.createObjectURL(file);
+
+			// Get image dimensions to calculate placement
+			const img = new Image();
+			const imageLoadPromise = new Promise<{ width: number; height: number }>((resolve, reject) => {
+				img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+				img.onerror = reject;
 			});
-			if (!uploadResponse.ok) {
-				throw new Error("Failed to upload design to R2");
-			}
-			const uploadResult = await uploadResponse.json();
-			if (!uploadResult.success) {
-				throw new Error(uploadResult.error || "Upload failed");
-			}
-			console.log("UPLOAD", uploadResult);
-			const designR2Key = uploadResult.data.key;
-			// Extract colors and dimensions using server-side tRPC procedure
-			const {
-				colorProfile,
-				width: originalWidth,
-				height: originalHeight,
-			} = await trpcClient.productDesign.mockup.extractColorsAndSize.mutate({
-				designR2Key,
-			});
-			if (!currentBaseSkuId) {
-				throw new Error("Base not found");
-			}
-			const product = get().bases.catalog[currentBaseSkuId];
-			const currentView = product.views[viewCode as "front" | "back"];
+			img.src = designBlobUrl;
+
+			const { width: originalWidth, height: originalHeight } = await imageLoadPromise;
+
+			// Calculate initial placement
 			const printArea = currentView.printArea;
 			const initialWidth = printArea.width_px * 0.5;
 			const initialHeight = (initialWidth / originalWidth) * originalHeight;
-			const currentDesign = {
+
+			// Create temporary design object with blob URL for instant display
+			const temporaryDesign = {
 				left: 0,
 				top: 0,
 				width: initialWidth,
@@ -110,20 +106,22 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				rotation: 0,
 				relativeMidXOffset: 0,
 				relativeMidYOffset: 0,
-				designR2Key: designR2Key,
+				designR2Key: '', // Will be updated after R2 upload
+				designBlobUrl,
 				originalWidth,
 				originalHeight,
-				colorProfile,
+				colorProfile: { colors: [], dominantColor: '#000000', profile: 'vibrant' as const }, // Temporary
 				templateScaleFactor: 1,
 				templatePPI: 150,
 			};
+
+			// Update state immediately for instant display
 			set((state) => ({
 				editor: {
 					...state.editor,
 					currentDesigns: {
-						// Changed from currentDesign
 						...state.editor.currentDesigns,
-						[viewCode]: currentDesign, // Set design for specific view
+						[viewCode]: temporaryDesign,
 					},
 					// Clear previews only for this view
 					previews: Object.fromEntries(
@@ -138,6 +136,55 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 					),
 				},
 			}));
+
+			// Start R2 upload and color extraction in background
+			const formData = new FormData();
+			formData.append("file", file);
+			formData.append("bucket", "PUBLIC");
+			formData.append("prefix", "DESIGNS");
+			formData.append("userId", get().editor.sessionId || "anonymous");
+
+			const uploadResponse = await fetch("/api/upload", {
+				method: "POST",
+				body: formData,
+			});
+
+			if (!uploadResponse.ok) {
+				throw new Error("Failed to upload design to R2");
+			}
+
+			const uploadResult = await uploadResponse.json();
+			if (!uploadResult.success) {
+				throw new Error(uploadResult.error || "Upload failed");
+			}
+
+			console.log("R2 Upload completed:", uploadResult);
+			const designR2Key = uploadResult.data.key;
+
+			// Extract colors using server-side tRPC procedure
+			const { colorProfile } = await trpcClient.productDesign.mockup.extractColorsAndSize.mutate({
+				designR2Key,
+			});
+
+			// Update design with R2 key and correct color profile
+			set((state) => {
+				const currentDesign = state.editor.currentDesigns[viewCode];
+				if (!currentDesign) return state;
+
+				return {
+					editor: {
+						...state.editor,
+						currentDesigns: {
+							...state.editor.currentDesigns,
+							[viewCode]: {
+								...currentDesign,
+								designR2Key,
+								colorProfile,
+							},
+						},
+					},
+				};
+			});
 		} catch (error) {
 			console.error("Design upload failed:", error);
 			throw new Error(
@@ -173,6 +220,16 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 		const currentDesign = get().editor.currentDesigns[viewCode];
 		if (!currentDesign) return;
 
+		// Clean up blob URL if it exists
+		if (currentDesign.designBlobUrl?.startsWith("blob:")) {
+			URL.revokeObjectURL(currentDesign.designBlobUrl);
+		}
+
+		// Clean up R2 file if it exists
+		if (currentDesign.designR2Key) {
+			deleteR2File("PRIVATE", currentDesign.designR2Key);
+		}
+
 		set((state) => ({
 			editor: {
 				...state.editor,
@@ -193,16 +250,19 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				),
 			},
 		}));
-
-		if (currentDesign.designR2Key) {
-			deleteR2File("PRIVATE", currentDesign.designR2Key);
-		}
 	},
 
 	calculatePrintQuality: () => {},
 
 	resetEditor: () => {
-		// Clean up editor preview blob URLs
+		// Clean up design blob URLs
+		Object.values(get().editor.currentDesigns).forEach((design) => {
+			if (design?.designBlobUrl?.startsWith("blob:")) {
+				URL.revokeObjectURL(design.designBlobUrl);
+			}
+		});
+
+		// Clean up preview blob URLs
 		Object.values(get().editor.previews).forEach((url) => {
 			if (url.startsWith("blob:")) {
 				URL.revokeObjectURL(url);
@@ -214,7 +274,7 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				...state.editor,
 				sessionId: null,
 				currentBaseSkuId: null,
-				currentDesign: null,
+				currentDesigns: {}, // Clear all designs
 				previews: {},
 				previewStates: {},
 				selectedColors: [],

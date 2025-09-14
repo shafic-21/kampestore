@@ -21,6 +21,8 @@ export interface CachedProduct {
   code: string;
   name: string;
   cost: number;
+  placements: Partial<Record<"front" | "back", NormalizedPlacement>>;
+  previews: Partial<Record<"front" | "back", Record<string, string>>>;
   generatedPreview: {
     imageUrl: string | null;
     placement: NormalizedPlacement;
@@ -76,6 +78,7 @@ export interface EditorState {
         relativeMidXOffset: number;
         relativeMidYOffset: number;
         designR2Key: string;
+        designBlobUrl: string;
         originalWidth: number;
         originalHeight: number;
         colorProfile: ColorProfile;
@@ -156,7 +159,6 @@ export interface ListingState {
       string,
       {
         designR2Key: string;
-        placement: NormalizedPlacement;
       }
     > | null;
     products: ListingProduct[];
@@ -178,6 +180,8 @@ export interface ListingActions {
   clearListing: () => void;
 
   generateCatalogPreviews: () => Promise<void>;
+  updateProductPlacement: (baseSkuId: string, viewCode: string, placement: NormalizedPlacement) => void;
+  generateSingleProductPreview: (baseSkuId: string) => Promise<void>;
 }
 
 export type ListingSlice = ListingState & ListingActions;
