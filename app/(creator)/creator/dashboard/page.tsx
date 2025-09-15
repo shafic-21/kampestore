@@ -27,7 +27,7 @@ export default async function CreatorDashboardPage() {
 		creator: {
 			id: creator.id,
 			storeName: creator.storeName,
-			creatorSlug: creator.creatorSlug,
+			storeSlug: creator.storeSlug,
 			firstName: session.user.name?.split(" ")[0] || "Creator",
 			lastName: session.user.name?.split(" ")[1] || "",
 			email: session.user.email || "",

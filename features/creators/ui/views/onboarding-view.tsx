@@ -108,7 +108,7 @@ export default function OnboardingView({ user }: OnboardingViewProps) {
 
 		createCreatorMutation.mutate({
 			storeName: data.storeName.trim(),
-			creatorSlug: generatedSlug,
+			storeSlug: generatedSlug,
 		});
 	};
 

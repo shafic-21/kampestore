@@ -1,7 +1,7 @@
 export interface CreatorProfile {
 	id: string;
 	storeName: string;
-	creatorSlug: string;
+	storeSlug: string;
 	firstName: string;
 	lastName: string;
 	email: string;

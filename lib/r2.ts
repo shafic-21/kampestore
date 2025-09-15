@@ -1,9 +1,9 @@
 import {
-	S3Client,
-	PutObjectCommand,
-	GetObjectCommand,
 	DeleteObjectCommand,
+	GetObjectCommand,
 	ListObjectsV2Command,
+	PutObjectCommand,
+	S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -202,6 +202,8 @@ export const R2_PREFIXES = {
 	USER_UPLOADS: "uploads",
 	PRODUCT_IMAGES: "products",
 	MARKETING: "marketing",
+	STORE_LOGOS: "store/logos",
+	STORE_BANNERS: "store/banners",
 } as const;
 
 export type R2Prefix = (typeof R2_PREFIXES)[keyof typeof R2_PREFIXES];
