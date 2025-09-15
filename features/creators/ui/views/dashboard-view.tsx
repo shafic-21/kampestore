@@ -7,33 +7,33 @@ import { ArticlesSection } from "@/features/creators/ui/components/dashboard/art
 import type { DashboardData } from "@/features/creators/types";
 
 interface DashboardViewProps {
-	data: DashboardData;
+  data: DashboardData;
 }
 
 export function DashboardView({ data }: DashboardViewProps) {
-	const { creator, stats, bestsellerProducts, featuredArticles } = data;
+  const { creator, bestsellerProducts, featuredArticles } = data;
 
-	return (
-		<div className="min-h-screen bg-background">
-			<div className="container mx-auto py-8 px-4 max-w-7xl space-y-10">
-				{/* Welcome Header */}
-				<WelcomeHeader creator={creator} />
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-8 px-4 max-w-7xl space-y-10">
+        {/* Welcome Header */}
+        <WelcomeHeader creator={creator} />
 
-				{/* Stats Overview */}
-				<StatsCards />
+        {/* Stats Overview */}
+        <StatsCards />
 
-				{/* Quick Actions */}
-				<QuickActions />
+        {/* Quick Actions */}
+        <QuickActions />
 
-				{/* Sample Banner */}
-				<SampleBanner />
+        {/* Sample Banner */}
+        <SampleBanner />
 
-				{/* Bestsellers Section */}
-				<BestsellersSection products={bestsellerProducts} />
+        {/* Bestsellers Section */}
+        <BestsellersSection products={bestsellerProducts} />
 
-				{/* Educational Articles */}
-				<ArticlesSection articles={featuredArticles} />
-			</div>
-		</div>
-	);
+        {/* Educational Articles */}
+        <ArticlesSection articles={featuredArticles} />
+      </div>
+    </div>
+  );
 }

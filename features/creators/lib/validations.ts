@@ -10,33 +10,33 @@ export const storeNameSchema = z
 		"Store name can only contain letters, numbers, spaces, hyphens, underscores, periods, ampersands, and apostrophes",
 	);
 
-// Creator slug validation (URL-safe, lowercase, no spaces)
-export const creatorSlugSchema = z
+// Store slug validation (URL-safe, lowercase, no spaces)
+export const storeSlugSchema = z
 	.string()
-	.min(3, "Creator slug must be at least 3 characters")
-	.max(50, "Creator slug must be less than 50 characters")
+	.min(3, "Store slug must be at least 3 characters")
+	.max(50, "Store slug must be less than 50 characters")
 	.regex(
 		/^[a-z0-9-]+$/,
-		"Creator slug can only contain lowercase letters, numbers, and hyphens",
+		"Store slug can only contain lowercase letters, numbers, and hyphens",
 	)
 	.refine(
 		(slug) => !slug.startsWith("-") && !slug.endsWith("-"),
-		"Creator slug cannot start or end with a hyphen",
+		"Store slug cannot start or end with a hyphen",
 	)
 	.refine(
 		(slug) => !slug.includes("--"),
-		"Creator slug cannot contain consecutive hyphens",
+		"Store slug cannot contain consecutive hyphens",
 	);
 
 // Complete creator creation schema
 export const createCreatorSchema = z.object({
 	storeName: storeNameSchema,
-	creatorSlug: creatorSlugSchema,
+	storeSlug: storeSlugSchema,
 });
 
 // Slug availability check schema
 export const checkSlugSchema = z.object({
-	slug: creatorSlugSchema,
+	slug: storeSlugSchema,
 });
 
 export type CreateCreatorInput = z.infer<typeof createCreatorSchema>;
