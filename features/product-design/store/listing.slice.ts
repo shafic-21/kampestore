@@ -6,6 +6,7 @@ import type {
   ListingSliceCreator,
   NormalizedPlacement,
 } from "../types/store.types";
+import { getBestContrastingColor } from "../utils/color-utils";
 
 export const createListingSlice: ListingSliceCreator = (set, get) => ({
   listing: {
@@ -58,6 +59,43 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
       featuredColorId: featuredColorId,
     };
 
+    // Check for reusable editor previews
+    const existingCatalogPreviews = state.bases.catalog[currentBaseSkuId].previews || {};
+    const reusablePreviews: Record<string, Record<string, string>> = {};
+
+    // Check if editor previews can be reused for this product
+    for (const viewCode of ["front", "back"] as const) {
+      if (!currentPlacements[viewCode]) continue;
+
+      reusablePreviews[viewCode] = existingCatalogPreviews[viewCode] || {};
+
+      // Check each color in selectedColors for reusable previews
+      for (const colorId of selectedColors) {
+        const cacheKey = `${viewCode}_${colorId}`;
+        const editorPreview = state.editor.previews[cacheKey];
+        const editorPreviewState = state.editor.previewStates[cacheKey];
+
+        if (editorPreview && editorPreviewState && currentPlacements[viewCode]) {
+          // Check if the preview is valid (placement hasn't changed)
+          const placementMatches = (
+            editorPreviewState.placement.left === currentPlacements[viewCode]!.left &&
+            editorPreviewState.placement.top === currentPlacements[viewCode]!.top &&
+            editorPreviewState.placement.width === currentPlacements[viewCode]!.width &&
+            editorPreviewState.placement.height === currentPlacements[viewCode]!.height &&
+            editorPreviewState.placement.rotation === currentPlacements[viewCode]!.rotation &&
+            editorPreviewState.placement.relativeMidXOffset === currentPlacements[viewCode]!.relativeMidXOffset &&
+            editorPreviewState.placement.relativeMidYOffset === currentPlacements[viewCode]!.relativeMidYOffset
+          );
+
+          if (placementMatches) {
+            // Reuse the preview
+            reusablePreviews[viewCode][colorId] = editorPreview;
+            console.log(`Reusing editor preview for ${viewCode}_${colorId}`);
+          }
+        }
+      }
+    }
+
     set((state) => ({
       listing: {
         ...state.listing,
@@ -72,7 +110,10 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
           [currentBaseSkuId]: {
             ...state.bases.catalog[currentBaseSkuId],
             placements: currentPlacements, // Store placement in product
-            previews: state.bases.catalog[currentBaseSkuId].previews || {},
+            previews: {
+              ...existingCatalogPreviews,
+              ...reusablePreviews,
+            },
           },
         },
       },
@@ -89,7 +130,7 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
     }));
   },
 
-  addProduct: (baseSkuId, colors = []) => {
+  addProduct: (baseSkuId, colors = [], featuredColorId) => {
     const state = get();
     if (state.listing.products.some((p) => p.baseSkuId === baseSkuId)) return;
     if (state.listing.products.length >= 15) return;
@@ -101,7 +142,7 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
       baseSkuId,
       price: defaultPrice,
       colors: colors.slice(0, 3),
-      featuredColorId: colors[0] || null,
+      featuredColorId: featuredColorId || colors[0] || null,
     };
     set((state) => ({
       listing: {
@@ -198,17 +239,47 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
       `Starting preview generation for ${catalogProducts.length} products in catalog...`,
     );
 
+    // Get design color profile for smart color selection
+    const currentBaseSkuId = state.editor.currentBaseSkuId;
+    const frontCurrentDesign = currentBaseSkuId ? state.editor.currentDesigns.front : null;
+    const designColorProfile = frontCurrentDesign?.colorProfile;
+
     // Process each product
     for (const [index, product] of catalogProducts.entries()) {
       try {
         const view = product.views.front;
         if (!view) continue;
 
-        // Use first color as default for preview
-        const firstColorId = Object.keys(product.colors)[0];
-        if (!firstColorId) continue;
+        // Determine which color to use for preview
+        let selectedColorId: string;
+        let isInitialProduct = false;
 
-        const color = product.colors[firstColorId];
+        // Check if this is the initial product that was edited
+        if (currentBaseSkuId === product.id) {
+          isInitialProduct = true;
+          // For initial product, use featured color from listing
+          const listingProduct = state.listing.products.find(p => p.baseSkuId === product.id);
+          selectedColorId = listingProduct?.featuredColorId || Object.keys(product.colors)[0];
+        } else {
+          // For other products, use smart color selection based on design
+          if (designColorProfile && designColorProfile.colors.length > 0) {
+            const productColorArray = Object.values(product.colors);
+            const smartColorId = getBestContrastingColor(designColorProfile, productColorArray);
+            selectedColorId = smartColorId || Object.keys(product.colors)[0];
+          } else {
+            // Fallback to first color if no design color profile
+            selectedColorId = Object.keys(product.colors)[0];
+          }
+        }
+
+        if (!selectedColorId) continue;
+        const color = product.colors[selectedColorId];
+
+        // Skip if preview already exists for this color
+        if (product.previews?.front?.[selectedColorId]) {
+          console.log(`Preview already exists for ${product.name} (${color.displayName}), skipping`);
+          continue;
+        }
 
         console.log(
           `Generating preview ${index + 1}/${catalogProducts.length}: ${product.name}`,
@@ -261,7 +332,7 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
                   ...state.bases.catalog[product.id].previews,
                   front: {
                     ...state.bases.catalog[product.id].previews?.front,
-                    [firstColorId]: blobUrl,
+                    [selectedColorId]: blobUrl,
                   },
                 },
               },
@@ -321,10 +392,11 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
         return;
       }
 
-      // Use first color as default for preview
-      const firstColorId = Object.keys(product.colors)[0];
-      if (!firstColorId) return;
-      const color = product.colors[firstColorId];
+      // Use featuredColorId from listing product, or fallback to first color
+      const listingProduct = state.listing.products.find(p => p.baseSkuId === baseSkuId);
+      const selectedColorId = listingProduct?.featuredColorId || Object.keys(product.colors)[0];
+      if (!selectedColorId) return;
+      const color = product.colors[selectedColorId];
 
       console.log(`Generating preview for edited product: ${product.name}`);
 
@@ -366,7 +438,7 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
                 ...state.bases.catalog[baseSkuId].previews,
                 front: {
                   ...state.bases.catalog[baseSkuId].previews?.front,
-                  [firstColorId]: blobUrl,
+                  [selectedColorId]: blobUrl,
                 },
               },
             },
