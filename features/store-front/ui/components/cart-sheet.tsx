@@ -1,28 +1,36 @@
 "use client";
 
 import { ShoppingCartIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
 	ResponsiveSheet,
-	ResponsiveSheetTrigger,
-	ResponsiveSheetContent,
-	ResponsiveSheetHeader,
-	ResponsiveSheetFooter,
-	ResponsiveSheetTitle,
 	ResponsiveSheetClose,
+	ResponsiveSheetContent,
+	ResponsiveSheetFooter,
+	ResponsiveSheetHeader,
+	ResponsiveSheetTitle,
+	ResponsiveSheetTrigger,
 } from "@/components/responsive-sheet";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface CartSheetProps {
 	isSignedIn?: boolean;
 	cartItemsCount?: number;
 }
 
-export function CartSheet({ isSignedIn = false, cartItemsCount = 0 }: CartSheetProps) {
+export function CartSheet({
+	isSignedIn = false,
+	cartItemsCount = 0,
+}: CartSheetProps) {
 	return (
 		<ResponsiveSheet>
 			<ResponsiveSheetTrigger asChild>
-				<Button variant="ghost" size="icon" aria-label="Shopping cart" className="relative">
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label="Shopping cart"
+					className="relative"
+				>
 					<ShoppingCartIcon className="h-5 w-5" />
 					{cartItemsCount > 0 && (
 						<Badge
