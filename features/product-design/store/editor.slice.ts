@@ -304,6 +304,11 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 			let newCurrentProductColorId = state.editor.currentProductColorId;
 
 			if (isSelected) {
+				// Prevent deselecting the last remaining color
+				if (state.editor.selectedColors.length === 1) {
+					return {};
+				}
+
 				newSelectedColors = state.editor.selectedColors.filter(
 					(id) => id !== colorId,
 				);
