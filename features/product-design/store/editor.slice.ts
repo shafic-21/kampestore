@@ -31,15 +31,37 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 		}
 
 		const sessionId = uuidv4();
-		const defaultCustomerPrice = Math.round(base.cost * 1.2);
 		const firstColorId = Object.keys(base.colors)[0];
+
+		// Check if product exists in listing to restore its values
+		const listingProduct = state.listing.products.find(p => p.baseSkuId === baseSkuId);
+
+		// Use listing values if available, otherwise defaults
+		const customerPrice = listingProduct?.price || Math.round(base.cost * 1.2);
+
+		// Validate colors exist for THIS product - filter out invalid color IDs
+		const validColors = listingProduct?.colors.filter(colorId =>
+			base.colors[colorId]
+		) || [];
+
+		const selectedColors = validColors.length > 0
+			? validColors
+			: [firstColorId];
+
+		// Ensure featured color is valid for this product
+		const featuredColorId = (listingProduct?.featuredColorId && base.colors[listingProduct.featuredColorId])
+			? listingProduct.featuredColorId
+			: selectedColors[0];
 
 		set((state) => ({
 			editor: {
 				...state.editor,
 				sessionId,
 				currentBaseSkuId: baseSkuId,
-				customerPrice: defaultCustomerPrice,
+				customerPrice: customerPrice,
+				selectedColors: selectedColors,
+				featuredColorId: featuredColorId,
+				currentProductColorId: featuredColorId,
 			},
 			meta: {
 				...state.meta,
@@ -47,12 +69,6 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				initialBase: state.meta.initialBase || baseSkuId,
 			},
 		}));
-
-		if (firstColorId) {
-			get().setSelectedColors([firstColorId]);
-			get().setFeaturedColor(firstColorId);
-			get().setCurrentProductColor(firstColorId);
-		}
 
 		console.log(
 			`[initializeEditor] Initialized editor for ${base.name} (${baseSkuId})`,
