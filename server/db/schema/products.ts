@@ -158,9 +158,9 @@ export const variantAttributeValues = pgTable(
 
 // Relations
 export const productsRelations = relations(products, ({ one, many }) => ({
-  creator: one(creators, {
+  listing: one(creatorListings, {
     fields: [products.listingId],
-    references: [creators.id],
+    references: [creatorListings.id],
   }),
   baseSku: one(baseSkus, {
     fields: [products.baseSkuId],

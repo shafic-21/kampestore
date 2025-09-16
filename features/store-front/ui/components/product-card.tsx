@@ -11,7 +11,7 @@ type Props = {
     id: string;
     listingTitle: string;
     baseName: string;
-    price: string | bigint;
+    price: number;
     defaultImageUrl: string;
     colors: Array<{
       id: string;
