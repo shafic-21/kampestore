@@ -217,8 +217,10 @@ export function EditorSidePanel({ ...props }) {
 											isSelected={selectedColors.includes(color.id)}
 											isSelectable={true}
 											isDisabled={
-												selectedColors.length >= 5 &&
-												!selectedColors.includes(color.id)
+												(selectedColors.length >= 5 &&
+												!selectedColors.includes(color.id)) ||
+												(selectedColors.length === 1 &&
+												selectedColors.includes(color.id))
 											}
 											onSelect={handleColorToggle}
 										/>

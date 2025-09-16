@@ -66,7 +66,9 @@ export function ProductPreviewColorselector({
 					key="first-spacer"
 					className="basis-auto h-14 w-4 grid place-items-center cursor-pointer"
 				/>
-				{selectedColors.map((colorId) => (
+				{selectedColors
+					.filter(colorId => colorMap[colorId]) // Only render colors that exist in colorMap
+					.map((colorId) => (
 					<CarouselItem
 						key={colorId}
 						className="basis-auto size-14 grid place-items-center cursor-pointer"

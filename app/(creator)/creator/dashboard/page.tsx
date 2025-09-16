@@ -1,9 +1,9 @@
-import { auth } from "@/server/auth";
-import { redirect } from "next/navigation";
-import { createCaller } from "@/trpc/server";
 import { headers } from "next/headers";
-import { DashboardView } from "@/features/creators/ui/views/dashboard-view";
+import { redirect } from "next/navigation";
 import type { DashboardData } from "@/features/creators/types";
+import { DashboardView } from "@/features/creators/ui/views/dashboard-view";
+import { auth } from "@/server/auth";
+import { createCaller } from "@/trpc/server";
 
 export default async function CreatorDashboardPage() {
 	const Headers = await headers();
@@ -26,8 +26,8 @@ export default async function CreatorDashboardPage() {
 	const dashboardData: DashboardData = {
 		creator: {
 			id: creator.id,
-			storeName: creator.storeName,
-			storeSlug: creator.storeSlug,
+			storeName: "John",
+			storeSlug: "bad boy",
 			firstName: session.user.name?.split(" ")[0] || "Creator",
 			lastName: session.user.name?.split(" ")[1] || "",
 			email: session.user.email || "",

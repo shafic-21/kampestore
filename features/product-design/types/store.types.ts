@@ -23,10 +23,6 @@ export interface CachedProduct {
   cost: number;
   placements: Partial<Record<"front" | "back", NormalizedPlacement>>;
   previews: Partial<Record<"front" | "back", Record<string, string>>>;
-  generatedPreview: {
-    imageUrl: string | null;
-    placement: NormalizedPlacement;
-  } | null;
   views: Partial<
     Record<
       "front" | "back",
@@ -168,7 +164,7 @@ export interface ListingState {
 export interface ListingActions {
   createListing: () => void;
   updateListingDetails: (title: string, description?: string) => void;
-  addProduct: (baseSkuId: string, colors?: string[]) => void;
+  addProduct: (baseSkuId: string, colors?: string[], featuredColorId?: string) => void;
   updateProduct: (
     baseSkuId: string,
     updates: Partial<Omit<ListingProduct, "baseSkuId" | "baseCost">>,

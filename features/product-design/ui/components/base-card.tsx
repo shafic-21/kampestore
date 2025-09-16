@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { ColorSwatchRow } from "@/components/ui/color-swatch";
 import { cn } from "@/lib/utils";
 import { useProductDesignStore } from "../../store";
+import { getContrastingColors } from "../../utils/color-utils";
 
 type Props = {
   base: {
@@ -43,6 +44,12 @@ export function BaseCard({
   const selectedColors = useProductDesignStore(
     (state) => state.editor.selectedColors,
   );
+  const featuredColorId = useProductDesignStore(
+    (state) => state.editor.featuredColorId,
+  );
+  const frontDesign = useProductDesignStore(
+    (state) => state.editor.currentDesigns.front,
+  );
 
   // Subscribe to products array to trigger re-renders when products change
   const isInListing = useProductDesignStore(
@@ -56,11 +63,27 @@ export function BaseCard({
       if (isInListing) {
         removeProduct(base.id);
       } else {
-        const colors =
-          selectedColors.length > 0
-            ? selectedColors
-            : base.colors.slice(0, 3).map((c) => c.id);
-        addProduct(base.id, colors);
+        let colors: string[];
+        let featuredColor: string | undefined;
+
+        if (selectedColors.length > 0) {
+          // Use editor's selected colors
+          colors = selectedColors;
+          featuredColor = featuredColorId || undefined;
+        } else {
+          // Use smart color selection based on design
+          if (frontDesign?.colorProfile && frontDesign.colorProfile.colors.length > 0) {
+            const smartColors = getContrastingColors(frontDesign.colorProfile, base.colors, 3);
+            colors = smartColors;
+            featuredColor = smartColors[0];
+          } else {
+            // Fallback to first 3 colors
+            colors = base.colors.slice(0, 3).map((c) => c.id);
+            featuredColor = colors[0];
+          }
+        }
+
+        addProduct(base.id, colors, featuredColor);
       }
     }
   };

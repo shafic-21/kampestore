@@ -67,7 +67,7 @@ export function CreateListingView({ initialSkuId }: CreateListingViewProps) {
                         })),
                         totalColors: Object.keys(product.colors).length,
                         displayImageUrl:
-                          product.generatedPreview?.imageUrl ||
+                          Object.values(product.previews?.front || {})[0] ||
                           (product.views.front?.template.url as string),
                       }}
                       isPreEditor={false}

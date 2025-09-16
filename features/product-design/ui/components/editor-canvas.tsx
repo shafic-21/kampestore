@@ -163,11 +163,24 @@ const ProductEditor = ({ initialSkuId, isEditMode }: ProductEditorProps) => {
     const generateSingleProductPreview = useProductDesignStore.getState().generateSingleProductPreview;
 
     if (isEditMode) {
-      // Edit mode: Update only this product's placement and preview
+      // Edit mode: Update placement, price, and colors in listing
       const currentPlacement = getCurrentNormalizedPlacement(currentViewCode);
       if (currentPlacement && currentBaseSkuId) {
         console.log(`Updating placement for product ${currentBaseSkuId}`);
         updateProductPlacement(currentBaseSkuId, currentViewCode, currentPlacement);
+
+        // Also update price and colors in listing
+        const updateProduct = useProductDesignStore.getState().updateProduct;
+        const editorState = useProductDesignStore.getState().editor;
+
+        if (editorState.customerPrice !== null) {
+          updateProduct(currentBaseSkuId, {
+            price: editorState.customerPrice,
+            colors: editorState.selectedColors.slice(0, 5), // Limit to 5 colors
+            featuredColorId: editorState.featuredColorId
+          });
+          console.log(`Updated listing product price to ${editorState.customerPrice}`);
+        }
 
         // Generate preview only for this edited product
         await generateSingleProductPreview(currentBaseSkuId).catch((error) => {
