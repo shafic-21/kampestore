@@ -63,7 +63,6 @@ export function transformToCache(data: ServerEditorData): CachedProduct {
     colors,
     placements: {},
     previews: {},
-    generatedPreview: null,
   };
 }
 

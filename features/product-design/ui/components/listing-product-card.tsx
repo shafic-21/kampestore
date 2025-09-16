@@ -51,7 +51,7 @@ export function ListingProductCard({ product, initialSkuId }: ListingProductCard
           <div className="w-full h-full relative overflow-hidden rounded-md">
             <Image
               src={
-                base.generatedPreview?.imageUrl ||
+                Object.values(base.previews?.front || {})[0] ||
                 (base.views.front?.template.url as string)
               }
               alt={`${base.name} with design`}

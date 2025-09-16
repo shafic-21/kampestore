@@ -399,7 +399,6 @@ export const productDesignRouter = {
             cost: Number(product.cost),
             placements: {},
             previews: {},
-            generatedPreview: null,
             views: viewsObject,
             colors: colorsObject,
           };

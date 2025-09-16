@@ -145,9 +145,6 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
   clearListing: () => {
     // Clean up all generated preview blob URLs
     Object.values(get().bases.catalog).forEach((cachedProduct) => {
-      if (cachedProduct.generatedPreview?.imageUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(cachedProduct.generatedPreview.imageUrl);
-      }
       // Also clean up any blob URLs in the previews object
       if (cachedProduct.previews) {
         Object.values(cachedProduct.previews).forEach((viewPreviews) => {
@@ -168,7 +165,6 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
             id,
             {
               ...product,
-              generatedPreview: null,
               previews: {} // Clear all previews
             },
           ]),
@@ -267,11 +263,6 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
                     ...state.bases.catalog[product.id].previews?.front,
                     [firstColorId]: blobUrl,
                   },
-                },
-                // Keep old generatedPreview for compatibility
-                generatedPreview: {
-                  imageUrl: blobUrl,
-                  placement: placement, // Use product's placement
                 },
               },
             },
@@ -377,11 +368,6 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
                   ...state.bases.catalog[baseSkuId].previews?.front,
                   [firstColorId]: blobUrl,
                 },
-              },
-              // Keep old generatedPreview for now (compatibility)
-              generatedPreview: {
-                imageUrl: blobUrl,
-                placement: placement,
               },
             },
           },
