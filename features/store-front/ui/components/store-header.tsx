@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { UserIcon, Search } from "lucide-react";
+import { Search, UserIcon } from "lucide-react";
 import { useQueryState } from "nuqs";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/use-debounce";
-import { CartSheet } from "@/features/store/ui/components/cart-sheet";
+import { CartSheet } from "./cart-sheet";
 
 interface StoreHeaderProps {
   storeName: string;
@@ -55,7 +55,9 @@ export function StoreHeader({
         <div className="flex h-16 items-center justify-between gap-2 lg:gap-4">
           {/* Store Name - Left */}
           <div className="flex-shrink-0">
-            <h1 className="text-lg lg:text-xl font-bold text-foreground">{storeName}</h1>
+            <h1 className="text-lg lg:text-xl font-bold text-foreground">
+              {storeName}
+            </h1>
           </div>
 
           {/* Categories and Search - Center */}
@@ -96,7 +98,10 @@ export function StoreHeader({
             <Button variant="ghost" size="icon" aria-label="User account">
               <UserIcon className="h-5 w-5" />
             </Button>
-            <CartSheet isSignedIn={isSignedIn} cartItemsCount={cartItemsCount} />
+            <CartSheet
+              isSignedIn={isSignedIn}
+              cartItemsCount={cartItemsCount}
+            />
           </div>
         </div>
       </div>
