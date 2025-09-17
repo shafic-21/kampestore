@@ -7,15 +7,15 @@ const nextConfig: NextConfig = {
 		},
 	},
 	/* config options here */
-	// async redirects() {
-	//   return [
-	//     {
-	//       source: "/",
-	//       destination: "/waitlist",
-	//       permanent: false,
-	//     },
-	//   ];
-	// },
+	async redirects() {
+	  return [
+	    {
+	      source: "/",
+	      destination: "/waitlist",
+	      permanent: false,
+	    },
+	  ];
+	},
 	images: {
 		remotePatterns: [
 			{
