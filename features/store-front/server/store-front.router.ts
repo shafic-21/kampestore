@@ -22,10 +22,368 @@ import {
   attributes,
   attributeValues
 } from "@/server/db/schema/catalog";
-import { eq, and, like, desc, count, sql, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, like, desc, count, sql, isNotNull, inArray, not } from "drizzle-orm";
 import { getPublicUrl } from "@/lib/r2";
 
 export const storeFrontRouter = createTRPCRouter({
+  getProductDetails: publicProcedure
+    .input(z.object({
+      storeSlug: z.string(),
+      listingSlug: z.string(),
+      productId: z.string().optional(),
+      variantId: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      console.log(`[getProductDetails] Starting query for ${input.storeSlug}/${input.listingSlug}`);
+
+      // First, find the listing
+      const listing = await db
+        .select({
+          id: creatorListings.id,
+          title: creatorListings.title,
+          slug: creatorListings.slug,
+          frontDesignR2Key: creatorListings.frontDesignR2Key,
+          backDesignR2Key: creatorListings.backDesignR2Key,
+          status: creatorListings.status,
+          storeName: stores.storeName,
+          storeSlug: stores.storeSlug,
+        })
+        .from(creatorListings)
+        .innerJoin(creators, eq(creatorListings.creatorId, creators.id))
+        .innerJoin(stores, eq(creators.id, stores.creatorId))
+        .where(and(
+          eq(stores.storeSlug, input.storeSlug),
+          eq(creatorListings.slug, input.listingSlug),
+          eq(stores.status, "active"),
+          eq(creatorListings.status, "published")
+        ))
+        .limit(1);
+
+      if (!listing[0]) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Product listing not found"
+        });
+      }
+
+      const listingData = listing[0];
+
+      // Get all products in this listing
+      const products = await db
+        .select({
+          id: products.id,
+          baseSkuId: products.baseSkuId,
+          price: products.price,
+          baseName: baseSkus.name,
+          categoryName: categories.name,
+          frontPlacement: products.frontPlacement,
+          backPlacement: products.backPlacement,
+        })
+        .from(products)
+        .innerJoin(baseSkus, eq(products.baseSkuId, baseSkus.id))
+        .innerJoin(categories, eq(baseSkus.categoryId, categories.id))
+        .where(eq(products.listingId, listingData.id));
+
+      if (products.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No products found for this listing"
+        });
+      }
+
+      // If productId is specified, filter to that product, otherwise use the first one
+      let selectedProduct = products[0];
+      if (input.productId) {
+        const foundProduct = products.find(p => p.id === input.productId);
+        if (foundProduct) {
+          selectedProduct = foundProduct;
+        }
+      }
+
+      // Get all variants for the selected product
+      const variants = await db
+        .select({
+          id: productVariants.id,
+          sku: productVariants.sku,
+          comboHash: productVariants.comboHash,
+          price: productVariants.price,
+          primaryMockupR2Key: productVariants.primaryMockupR2Key,
+          secondaryMockupR2Key: productVariants.secondaryMockupR2Key,
+          attributeId: attributes.id,
+          attributeCode: attributes.code,
+          attributeName: attributes.name,
+          attributeValueId: attributeValues.id,
+          attributeValueDisplayName: attributeValues.displayName,
+          attributeValueHexColor: attributeValues.hexColor,
+        })
+        .from(productVariants)
+        .innerJoin(variantAttributeValues, eq(productVariants.id, variantAttributeValues.variantId))
+        .innerJoin(attributes, eq(variantAttributeValues.attributeId, attributes.id))
+        .innerJoin(attributeValues, eq(variantAttributeValues.attributeValueId, attributeValues.id))
+        .where(eq(productVariants.productId, selectedProduct.id))
+        .orderBy(productVariants.sku);
+
+      // Group variants by variant ID and organize attributes
+      const variantMap = new Map();
+      variants.forEach(variant => {
+        if (!variantMap.has(variant.id)) {
+          variantMap.set(variant.id, {
+            id: variant.id,
+            sku: variant.sku,
+            comboHash: variant.comboHash,
+            price: variant.price,
+            primaryMockupR2Key: variant.primaryMockupR2Key,
+            secondaryMockupR2Key: variant.secondaryMockupR2Key,
+            attributes: new Map(),
+          });
+        }
+
+        const variantData = variantMap.get(variant.id);
+        variantData.attributes.set(variant.attributeCode, {
+          id: variant.attributeValueId,
+          displayName: variant.attributeValueDisplayName,
+          hexColor: variant.attributeValueHexColor,
+        });
+      });
+
+      // Convert to array and format attributes
+      const formattedVariants = Array.from(variantMap.values()).map(variant => ({
+        ...variant,
+        attributes: Object.fromEntries(variant.attributes),
+        price: variant.price ? Number(variant.price) : Number(selectedProduct.price),
+      }));
+
+      // Select the variant based on variantId or first one
+      let selectedVariant = formattedVariants[0];
+      if (input.variantId) {
+        const foundVariant = formattedVariants.find(v => v.id === input.variantId);
+        if (foundVariant) {
+          selectedVariant = foundVariant;
+        }
+      }
+
+      // Get available attributes for this product
+      const availableAttributes = await db
+        .select({
+          id: attributes.id,
+          code: attributes.code,
+          name: attributes.name,
+          values: sql`
+            json_agg(
+              json_build_object(
+                'id', ${attributeValues.id},
+                'displayName', ${attributeValues.displayName},
+                'hexColor', ${attributeValues.hexColor}
+              ) ORDER BY ${attributeValues.displayName}
+            )
+          `,
+        })
+        .from(attributes)
+        .innerJoin(variantAttributeValues, eq(attributes.id, variantAttributeValues.attributeId))
+        .innerJoin(attributeValues, eq(variantAttributeValues.attributeValueId, attributeValues.id))
+        .innerJoin(productVariants, eq(variantAttributeValues.variantId, productVariants.id))
+        .where(eq(productVariants.productId, selectedProduct.id))
+        .groupBy(attributes.id, attributes.code, attributes.name);
+
+      // Get variant images for selected variant
+      const variantImages: string[] = [];
+      if (selectedVariant.primaryMockupR2Key) {
+        variantImages.push(getPublicUrl(selectedVariant.primaryMockupR2Key));
+      }
+      if (selectedVariant.secondaryMockupR2Key) {
+        variantImages.push(getPublicUrl(selectedVariant.secondaryMockupR2Key));
+      }
+
+      // Get default mockups for this base if no variant images
+      if (variantImages.length === 0) {
+        const defaultMockups = await db
+          .select({
+            r2Key: baseSkuMockups.r2Key,
+            viewCode: baseSkuViews.code,
+          })
+          .from(baseSkuMockups)
+          .innerJoin(baseSkuViews, eq(baseSkuMockups.viewId, baseSkuViews.id))
+          .where(and(
+            eq(baseSkuMockups.baseSkuId, selectedProduct.baseSkuId),
+            eq(baseSkuMockups.purpose, "display_card")
+          ))
+          .orderBy(baseSkuViews.code);
+
+        defaultMockups.forEach(mockup => {
+          variantImages.push(getPublicUrl(mockup.r2Key));
+        });
+      }
+
+      return {
+        listing: {
+          id: listingData.id,
+          title: listingData.title,
+          slug: listingData.slug,
+          storeName: listingData.storeName,
+          storeSlug: listingData.storeSlug,
+        },
+        product: {
+          id: selectedProduct.id,
+          baseSkuId: selectedProduct.baseSkuId,
+          baseName: selectedProduct.baseName,
+          categoryName: selectedProduct.categoryName,
+          price: Number(selectedProduct.price),
+        },
+        selectedVariant,
+        variants: formattedVariants,
+        availableAttributes,
+        images: variantImages,
+        allProducts: products.map(p => ({
+          id: p.id,
+          baseSkuId: p.baseSkuId,
+          baseName: p.baseName,
+          price: Number(p.price),
+        })),
+      };
+    }),
+
+  getRelatedProducts: publicProcedure
+    .input(z.object({
+      storeSlug: z.string(),
+      listingId: z.string(),
+      currentProductId: z.string(),
+      limit: z.number().min(1).max(20).default(4),
+    }))
+    .query(async ({ input }) => {
+      // Get other products in the same listing
+      const relatedProducts = await db
+        .select({
+          productId: products.id,
+          listingTitle: creatorListings.title,
+          listingSlug: creatorListings.slug,
+          baseName: baseSkus.name,
+          price: products.price,
+        })
+        .from(products)
+        .innerJoin(creatorListings, eq(products.listingId, creatorListings.id))
+        .innerJoin(baseSkus, eq(products.baseSkuId, baseSkus.id))
+        .innerJoin(creators, eq(creatorListings.creatorId, creators.id))
+        .innerJoin(stores, eq(creators.id, stores.creatorId))
+        .where(and(
+          eq(stores.storeSlug, input.storeSlug),
+          eq(products.listingId, input.listingId),
+          not(eq(products.id, input.currentProductId)),
+          eq(stores.status, "active"),
+          eq(creatorListings.status, "published")
+        ))
+        .limit(input.limit);
+
+      // Get images for each product
+      const productIds = relatedProducts.map(p => p.productId);
+      if (productIds.length === 0) return [];
+
+      const productVariants = await db
+        .select({
+          productId: productVariants.productId,
+          primaryMockupR2Key: productVariants.primaryMockupR2Key,
+        })
+        .from(productVariants)
+        .where(and(
+          inArray(productVariants.productId, productIds),
+          isNotNull(productVariants.primaryMockupR2Key)
+        ));
+
+      const variantsByProduct = new Map();
+      productVariants.forEach(variant => {
+        if (!variantsByProduct.has(variant.productId)) {
+          variantsByProduct.set(variant.productId, variant);
+        }
+      });
+
+      return relatedProducts.map(product => {
+        const variant = variantsByProduct.get(product.productId);
+        let imageUrl = "https://placehold.co/400x400?text=Product";
+
+        if (variant?.primaryMockupR2Key) {
+          imageUrl = getPublicUrl(variant.primaryMockupR2Key);
+        }
+
+        return {
+          id: product.productId,
+          listingTitle: product.listingTitle,
+          listingSlug: product.listingSlug,
+          baseName: product.baseName,
+          price: Number(product.price),
+          imageUrl,
+        };
+      });
+    }),
+
+  getRecommendedProducts: publicProcedure
+    .input(z.object({
+      storeSlug: z.string(),
+      currentListingId: z.string(),
+      limit: z.number().min(1).max(20).default(4),
+    }))
+    .query(async ({ input }) => {
+      // Get random products from the same store, different listing
+      const recommendedProducts = await db
+        .select({
+          productId: products.id,
+          listingTitle: creatorListings.title,
+          listingSlug: creatorListings.slug,
+          baseName: baseSkus.name,
+          price: products.price,
+        })
+        .from(products)
+        .innerJoin(creatorListings, eq(products.listingId, creatorListings.id))
+        .innerJoin(baseSkus, eq(products.baseSkuId, baseSkus.id))
+        .innerJoin(creators, eq(creatorListings.creatorId, creators.id))
+        .innerJoin(stores, eq(creators.id, stores.creatorId))
+        .where(and(
+          eq(stores.storeSlug, input.storeSlug),
+          not(eq(creatorListings.id, input.currentListingId)),
+          eq(stores.status, "active"),
+          eq(creatorListings.status, "published")
+        ))
+        .orderBy(sql`RANDOM()`)
+        .limit(input.limit);
+
+      // Get images for each product
+      const productIds = recommendedProducts.map(p => p.productId);
+      if (productIds.length === 0) return [];
+
+      const productVariants = await db
+        .select({
+          productId: productVariants.productId,
+          primaryMockupR2Key: productVariants.primaryMockupR2Key,
+        })
+        .from(productVariants)
+        .where(and(
+          inArray(productVariants.productId, productIds),
+          isNotNull(productVariants.primaryMockupR2Key)
+        ));
+
+      const variantsByProduct = new Map();
+      productVariants.forEach(variant => {
+        if (!variantsByProduct.has(variant.productId)) {
+          variantsByProduct.set(variant.productId, variant);
+        }
+      });
+
+      return recommendedProducts.map(product => {
+        const variant = variantsByProduct.get(product.productId);
+        let imageUrl = "https://placehold.co/400x400?text=Product";
+
+        if (variant?.primaryMockupR2Key) {
+          imageUrl = getPublicUrl(variant.primaryMockupR2Key);
+        }
+
+        return {
+          id: product.productId,
+          listingTitle: product.listingTitle,
+          listingSlug: product.listingSlug,
+          baseName: product.baseName,
+          price: Number(product.price),
+          imageUrl,
+        };
+      });
+    }),
   getStoreBySlug: publicProcedure
     .input(z.object({
       slug: z.string()
@@ -254,6 +612,7 @@ export const storeFrontRouter = createTRPCRouter({
           return {
             id: product.productId,
             listingTitle: product.listingTitle,
+            listingSlug: product.listingSlug,
             baseName: product.baseName,
             price: Number(product.price), // Convert bigint to number for JSON serialization
             defaultImageUrl,

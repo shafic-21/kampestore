@@ -17,6 +17,7 @@ interface ProductsGridProps {
   products: Array<{
     id: string;
     listingTitle: string;
+    listingSlug: string;
     baseName: string;
     price: number;
     defaultImageUrl: string;
@@ -27,6 +28,7 @@ interface ProductsGridProps {
     }>;
     totalColors: number;
   }>;
+  storeSlug: string;
   isLoading?: boolean;
   pagination?: {
     page: number;
@@ -170,6 +172,7 @@ function PaginationControls({
 
 export function ProductsGrid({
   products,
+  storeSlug,
   isLoading = false,
   pagination,
   onPageChange,
@@ -202,6 +205,7 @@ export function ProductsGrid({
           <ProductCard
             key={product.id + index}
             product={product}
+            storeSlug={storeSlug}
           />
         ))}
       </div>
