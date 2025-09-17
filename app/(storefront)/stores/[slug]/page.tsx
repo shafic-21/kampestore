@@ -51,12 +51,7 @@ export default async function StorePage({ params, searchParams }: PageProps) {
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<StorePageView
-				storeSlug={slug}
-				initialStore={store}
-				initialCategories={initialCategories}
-				initialProducts={initialProducts}
-			/>
+			<StorePageView storeSlug={slug} />
 		</HydrationBoundary>
 	);
 }
