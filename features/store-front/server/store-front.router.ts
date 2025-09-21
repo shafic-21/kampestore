@@ -69,7 +69,7 @@ export const storeFrontRouter = createTRPCRouter({
       const listingData = listing[0];
 
       // Get all products in this listing
-      const products = await db
+      const productList = await db
         .select({
           id: products.id,
           baseSkuId: products.baseSkuId,
@@ -84,7 +84,7 @@ export const storeFrontRouter = createTRPCRouter({
         .innerJoin(categories, eq(baseSkus.categoryId, categories.id))
         .where(eq(products.listingId, listingData.id));
 
-      if (products.length === 0) {
+      if (productList.length === 0) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "No products found for this listing"
@@ -92,9 +92,9 @@ export const storeFrontRouter = createTRPCRouter({
       }
 
       // If productId is specified, filter to that product, otherwise use the first one
-      let selectedProduct = products[0];
+      let selectedProduct = productList[0];
       if (input.productId) {
-        const foundProduct = products.find(p => p.id === input.productId);
+        const foundProduct = productList.find(p => p.id === input.productId);
         if (foundProduct) {
           selectedProduct = foundProduct;
         }
@@ -233,7 +233,7 @@ export const storeFrontRouter = createTRPCRouter({
         variants: formattedVariants,
         availableAttributes,
         images: variantImages,
-        allProducts: products.map(p => ({
+        allProducts: productList.map(p => ({
           id: p.id,
           baseSkuId: p.baseSkuId,
           baseName: p.baseName,
@@ -277,7 +277,7 @@ export const storeFrontRouter = createTRPCRouter({
       const productIds = relatedProducts.map(p => p.productId);
       if (productIds.length === 0) return [];
 
-      const productVariants = await db
+      const variants = await db
         .select({
           productId: productVariants.productId,
           primaryMockupR2Key: productVariants.primaryMockupR2Key,
@@ -289,7 +289,7 @@ export const storeFrontRouter = createTRPCRouter({
         ));
 
       const variantsByProduct = new Map();
-      productVariants.forEach(variant => {
+      variants.forEach(variant => {
         if (!variantsByProduct.has(variant.productId)) {
           variantsByProduct.set(variant.productId, variant);
         }
@@ -348,7 +348,7 @@ export const storeFrontRouter = createTRPCRouter({
       const productIds = recommendedProducts.map(p => p.productId);
       if (productIds.length === 0) return [];
 
-      const productVariants = await db
+      const variants = await db
         .select({
           productId: productVariants.productId,
           primaryMockupR2Key: productVariants.primaryMockupR2Key,
@@ -360,7 +360,7 @@ export const storeFrontRouter = createTRPCRouter({
         ));
 
       const variantsByProduct = new Map();
-      productVariants.forEach(variant => {
+      variants.forEach(variant => {
         if (!variantsByProduct.has(variant.productId)) {
           variantsByProduct.set(variant.productId, variant);
         }
