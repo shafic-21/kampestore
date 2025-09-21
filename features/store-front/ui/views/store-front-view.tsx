@@ -186,6 +186,7 @@ export function StoreFrontView({
             ) : (
               <ProductsGrid
                 products={productsData?.products || []}
+                storeSlug={storeSlug}
                 pagination={productsData?.pagination}
                 isLoading={productsLoading}
                 onPageChange={handlePageChange}
