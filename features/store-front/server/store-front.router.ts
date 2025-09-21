@@ -168,7 +168,7 @@ export const storeFrontRouter = createTRPCRouter({
           id: attributes.id,
           code: attributes.code,
           name: attributes.name,
-          values: sql`
+          values: sql<{id: string; displayName: string; hexColor: string | null}[]>`
             json_agg(
               json_build_object(
                 'id', ${attributeValues.id},
