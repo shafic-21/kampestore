@@ -6,8 +6,23 @@ import { waitlist } from "@/server/db/schema/waitlist";
 import { WaitlistWelcomeEmail } from "@/features/waitlist/email-templates/waitlist-welcome";
 import { render } from "@react-email/components";
 import { Resend } from "resend";
+import { count } from "drizzle-orm";
 
 export const waitlistRouter = {
+	getWaitlistCount: publicProcedure.query(async () => {
+		try {
+			const result = await db.select({ count: count() }).from(waitlist);
+			return { count: result[0]?.count ?? 0 };
+		} catch (error) {
+			console.error("Failed to get waitlist count:", error);
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to get waitlist count",
+				cause: error,
+			});
+		}
+	}),
+
 	addToWaitlist: publicProcedure
 		.input(
 			z.object({

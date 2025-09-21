@@ -1,5 +1,5 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { notFound } from "next/navigation";
+
 import { StorePageView } from "@/features/store-front/ui/views/store-page-view";
 import { getQueryClient, trpc } from "@/trpc/server";
 
@@ -20,9 +20,6 @@ export default async function StorePage({ params, searchParams }: PageProps) {
 
 	const queryClient = getQueryClient();
 
-	// Prefetch store data
-	const store = await trpc.storeFront.getStoreBySlug({ slug });
-
 	// if (!store) {
 	// 	console.log("hello");
 	// 	notFound();
@@ -32,31 +29,9 @@ export default async function StorePage({ params, searchParams }: PageProps) {
 	// 	notFound();
 	// }
 
-	// Prefetch categories
-	await trpc.storeFront.getStoreCategories.prefetch({ storeSlug: slug });
-
-	// Prefetch initial products
-	const filters = {
-		storeSlug: slug,
-		search: search || undefined,
-		category: category || undefined,
-		page: page ? parseInt(page, 10) : 1,
-		pageSize: 16,
-	};
-
-	const initialProducts = await trpc.storeFront.getStoreProducts(filters);
-	const initialCategories = await trpc.storeFront.getStoreCategories({
-		storeSlug: slug,
-	});
-
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<StorePageView
-				storeSlug={slug}
-				initialStore={store}
-				initialCategories={initialCategories}
-				initialProducts={initialProducts}
-			/>
+			<StorePageView storeSlug={slug} />
 		</HydrationBoundary>
 	);
 }
