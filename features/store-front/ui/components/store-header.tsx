@@ -12,8 +12,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { CartSheet } from "@/features/store-front/ui/components/cart-sheet";
+
 import { useDebounce } from "@/hooks/use-debounce";
+import { CartSheet } from "./cart-sheet";
 
 interface StoreHeaderProps {
 	storeName: string;
@@ -49,16 +50,16 @@ export function StoreHeader({
 		setSearchQuery(debouncedSearchValue || null);
 	}
 
-	return (
-		<header className="border-b bg-background">
-			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				<div className="flex h-16 items-center justify-between gap-2 lg:gap-4">
-					{/* Store Name - Left */}
-					<div className="flex-shrink-0">
-						<h1 className="text-lg lg:text-xl font-bold text-foreground">
-							{storeName}
-						</h1>
-					</div>
+  return (
+    <header className="border-b bg-background">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-2 lg:gap-4">
+          {/* Store Name - Left */}
+          <div className="flex-shrink-0">
+            <h1 className="text-lg lg:text-xl font-bold text-foreground">
+              {storeName}
+            </h1>
+          </div>
 
 					{/* Categories and Search - Center */}
 					<div className="flex-1 flex items-center justify-center gap-1 sm:gap-2 max-w-2xl">
@@ -93,18 +94,18 @@ export function StoreHeader({
 						</div>
 					</div>
 
-					{/* User and Cart Buttons - Right (reordered) */}
-					<div className="flex items-center space-x-1 sm:space-x-2">
-						<Button variant="ghost" size="icon" aria-label="User account">
-							<UserIcon className="h-5 w-5" />
-						</Button>
-						<CartSheet
-							isSignedIn={isSignedIn}
-							cartItemsCount={cartItemsCount}
-						/>
-					</div>
-				</div>
-			</div>
-		</header>
-	);
+          {/* User and Cart Buttons - Right (reordered) */}
+          <div className="flex items-center space-x-1 sm:space-x-2">
+            <Button variant="ghost" size="icon" aria-label="User account">
+              <UserIcon className="h-5 w-5" />
+            </Button>
+            <CartSheet
+              isSignedIn={isSignedIn}
+              cartItemsCount={cartItemsCount}
+            />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
 }
