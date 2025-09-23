@@ -1,10 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
+import { deleteR2File, extractKeyFromPublicUrl } from "@/lib/r2";
+import { trpcClient } from "@/trpc/client";
 import type {
 	EditorSliceCreator,
 	NormalizedPlacement,
 } from "../types/store.types";
-import { trpcClient } from "@/trpc/client";
-import { deleteR2File, extractKeyFromPublicUrl } from "@/lib/r2";
+import { getBestContrastingColor } from "../utils/color-utils";
 
 export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 	editor: {
@@ -14,10 +15,7 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 		currentDesigns: {},
 		previews: {},
 		previewStates: {},
-		selectedColors: [],
-		featuredColorId: null,
 		currentProductColorId: null,
-		customerPrice: null,
 	},
 
 	initializeEditor: (baseSkuId) => {
@@ -31,37 +29,13 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 		}
 
 		const sessionId = uuidv4();
-		const firstColorId = Object.keys(base.colors)[0];
-
-		// Check if product exists in listing to restore its values
-		const listingProduct = state.listing.products.find(p => p.baseSkuId === baseSkuId);
-
-		// Use listing values if available, otherwise defaults
-		const customerPrice = listingProduct?.price || Math.round(base.cost * 1.2);
-
-		// Validate colors exist for THIS product - filter out invalid color IDs
-		const validColors = listingProduct?.colors.filter(colorId =>
-			base.colors[colorId]
-		) || [];
-
-		const selectedColors = validColors.length > 0
-			? validColors
-			: [firstColorId];
-
-		// Ensure featured color is valid for this product
-		const featuredColorId = (listingProduct?.featuredColorId && base.colors[listingProduct.featuredColorId])
-			? listingProduct.featuredColorId
-			: selectedColors[0];
 
 		set((state) => ({
 			editor: {
 				...state.editor,
 				sessionId,
 				currentBaseSkuId: baseSkuId,
-				customerPrice: customerPrice,
-				selectedColors: selectedColors,
-				featuredColorId: featuredColorId,
-				currentProductColorId: featuredColorId,
+				currentProductColorId: base.featuredColorId,
 			},
 			meta: {
 				...state.meta,
@@ -69,10 +43,6 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				initialBase: state.meta.initialBase || baseSkuId,
 			},
 		}));
-
-		console.log(
-			`[initializeEditor] Initialized editor for ${base.name} (${baseSkuId})`,
-		);
 	},
 
 	setStageSize: (size) => {
@@ -97,16 +67,19 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 		try {
 			// Create blob URL for instant display
 			const designBlobUrl = URL.createObjectURL(file);
-
 			// Get image dimensions to calculate placement
 			const img = new Image();
-			const imageLoadPromise = new Promise<{ width: number; height: number }>((resolve, reject) => {
-				img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-				img.onerror = reject;
-			});
+			const imageLoadPromise = new Promise<{ width: number; height: number }>(
+				(resolve, reject) => {
+					img.onload = () =>
+						resolve({ width: img.naturalWidth, height: img.naturalHeight });
+					img.onerror = reject;
+				},
+			);
 			img.src = designBlobUrl;
 
-			const { width: originalWidth, height: originalHeight } = await imageLoadPromise;
+			const { width: originalWidth, height: originalHeight } =
+				await imageLoadPromise;
 
 			// Calculate initial placement
 			const printArea = currentView.printArea;
@@ -122,11 +95,15 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				rotation: 0,
 				relativeMidXOffset: 0,
 				relativeMidYOffset: 0,
-				designR2Key: '', // Will be updated after R2 upload
+				designR2Key: "", // Will be updated after R2 upload
 				designBlobUrl,
 				originalWidth,
 				originalHeight,
-				colorProfile: { colors: [], dominantColor: '#000000', profile: 'vibrant' as const }, // Temporary
+				colorProfile: {
+					colors: [],
+					dominantColor: "#000000",
+					profile: "vibrant" as const,
+				}, // Temporary
 				templateScaleFactor: 1,
 				templatePPI: 150,
 			};
@@ -178,9 +155,27 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 			const designR2Key = uploadResult.data.key;
 
 			// Extract colors using server-side tRPC procedure
-			const { colorProfile } = await trpcClient.productDesign.mockup.extractColorsAndSize.mutate({
-				designR2Key,
-			});
+			const { colorProfile } =
+				await trpcClient.productDesign.mockup.extractColorsAndSize.mutate({
+					designR2Key,
+				});
+
+			const catalogProducts = Object.values(get().bases.catalog);
+
+			for (const [_, product] of catalogProducts.entries()) {
+				if (colorProfile && colorProfile.colors.length > 0) {
+					const productColorArray = Object.values(product.colors);
+					const smartColorId = getBestContrastingColor(
+						colorProfile,
+						productColorArray,
+					);
+
+					if (smartColorId && product.id !== get().meta.initialBase) {
+						get().setFeaturedColor(smartColorId, product.id);
+						get().setSelectedColorIds([smartColorId], product.id);
+					}
+				}
+			}
 
 			// Update design with R2 key and correct color profile
 			set((state) => {
@@ -271,7 +266,6 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 	calculatePrintQuality: () => {},
 
 	resetEditor: () => {
-		// Clean up design blob URLs
 		Object.values(get().editor.currentDesigns).forEach((design) => {
 			if (design?.designBlobUrl?.startsWith("blob:")) {
 				URL.revokeObjectURL(design.designBlobUrl);
@@ -293,71 +287,99 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 				currentDesigns: {}, // Clear all designs
 				previews: {},
 				previewStates: {},
-				selectedColors: [],
-				featuredColorId: null,
 				currentProductColorId: null,
-				customerPrice: null,
 			},
 		}));
 	},
-
-	setSelectedColors: (colorIds) =>
+	setFeaturedColor: (colorId, baseId) =>
 		set((state) => ({
-			editor: { ...state.editor, selectedColors: colorIds.slice(0, 5) },
+			bases: {
+				...state.bases,
+				catalog: {
+					...state.bases.catalog,
+					[baseId]: {
+						...state.bases.catalog[baseId],
+						featuredColorId: colorId,
+					},
+				},
+				lastUpdated: Date.now(),
+			},
 		})),
-	setFeaturedColor: (colorId) =>
-		set((state) => ({ editor: { ...state.editor, featuredColorId: colorId } })),
+	setSelectedColorIds: (colorIds, baseId) =>
+		set((state) => ({
+			bases: {
+				...state.bases,
+				catalog: {
+					...state.bases.catalog,
+					[baseId]: {
+						...state.bases.catalog[baseId],
+						selectedColorIds: colorIds,
+					},
+				},
+				lastUpdated: Date.now(),
+			},
+		})),
 	setCurrentProductColor: (colorId) =>
 		set((state) => ({
 			editor: { ...state.editor, currentProductColorId: colorId },
 		})),
 
-	toggleColorSelection: (colorId) => {
-		set((state) => {
-			const isSelected = state.editor.selectedColors.includes(colorId);
-			let newSelectedColors: string[];
-			let newFeaturedColorId = state.editor.featuredColorId;
-			let newCurrentProductColorId = state.editor.currentProductColorId;
+	toggleColorSelection: (colorId, baseId) => {
+		const state = get();
 
-			if (isSelected) {
-				// Prevent deselecting the last remaining color
-				if (state.editor.selectedColors.length === 1) {
-					return {};
-				}
+		const base = state.bases.catalog[baseId];
+		const isSelected = base.selectedColorIds?.includes(colorId);
+		let newSelectedColorIds: string[];
+		let newFeaturedColorId = base.featuredColorId;
+		let newCurrentProductColorId = state.editor.currentProductColorId;
 
-				newSelectedColors = state.editor.selectedColors.filter(
-					(id) => id !== colorId,
-				);
-				if (state.editor.featuredColorId === colorId) {
-					newFeaturedColorId = newSelectedColors[0] || null;
-				}
-
-				// Handle currentProductColorId when removing
-				if (state.editor.currentProductColorId === colorId) {
-					newCurrentProductColorId = newSelectedColors[0] || null;
-				}
-			} else if (state.editor.selectedColors.length < 5) {
-				newSelectedColors = [...state.editor.selectedColors, colorId];
-				if (!state.editor.featuredColorId) {
-					newFeaturedColorId = colorId;
-				}
-			} else {
+		if (isSelected) {
+			// Prevent deselecting the last remaining color
+			if (base.selectedColorIds?.length === 1) {
 				return {};
 			}
 
-			return {
-				editor: {
-					...state.editor,
-					selectedColors: newSelectedColors,
-					featuredColorId: newFeaturedColorId,
-					currentProductColorId: newCurrentProductColorId,
-				},
-			};
-		});
+			newSelectedColorIds =
+				base.selectedColorIds?.filter((id) => id !== colorId) || [];
+
+			if (base.featuredColorId === colorId) {
+				newFeaturedColorId = newSelectedColorIds[0];
+			}
+
+			// Handle currentProductColorId when removing
+			if (state.editor.currentProductColorId === colorId) {
+				newCurrentProductColorId = newSelectedColorIds[0] || null;
+			}
+		} else if (base.selectedColorIds && base.selectedColorIds?.length < 5) {
+			newSelectedColorIds = [...base.selectedColorIds, colorId];
+			if (!base.featuredColorId) {
+				newFeaturedColorId = colorId;
+			}
+		} else {
+			return {};
+		}
+
+		if (newCurrentProductColorId && newFeaturedColorId) {
+			state.setFeaturedColor(newFeaturedColorId, baseId);
+			state.setSelectedColorIds(newSelectedColorIds, baseId);
+			state.setCurrentProductColor(newCurrentProductColorId);
+		}
 	},
 
-	setCustomerPrice: (price) => {
-		set((state) => ({ editor: { ...state.editor, customerPrice: price } }));
+	setCreatorPrice: (price, baseId) => {
+		set((state) => ({
+			bases: {
+				...state.bases,
+				catalog: {
+					...state.bases.catalog,
+					[baseId]: {
+						...state.bases.catalog[baseId],
+						creatorPrice: price,
+					},
+				},
+				lastUpdated: Date.now(),
+			},
+		}));
 	},
 
 	getCurrentNormalizedPlacement: (viewCode: string) => {

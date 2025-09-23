@@ -1,12 +1,12 @@
-import { ColorSwatch } from "@/components/ui/color-swatch";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { ColorSwatch } from "@/components/ui/color-swatch";
+import { usePreviewGenerator } from "../../hooks/use-preview-generator";
 import { useProductDesignStore } from "../../store";
 import { createColorMap } from "../../utils";
-import { useShallow } from "zustand/react/shallow";
-import { useQueryState, parseAsStringLiteral } from "nuqs";
-import { usePreviewGenerator } from "../../hooks/use-preview-generator";
 
-export const EditorColorSwitcher = ({}) => {
+export const EditorColorSwitcher = () => {
 	// ===== URL STATE =====
 	const [editorMode] = useQueryState(
 		"mode",
@@ -19,21 +19,15 @@ export const EditorColorSwitcher = ({}) => {
 	);
 
 	// ===== STORE SELECTORS =====
-	const {
-		currentBaseSkuId,
-		selectedColors,
-		currentProductColorId,
-		currentDesign,
-		previews,
-	} = useProductDesignStore(
-		useShallow((state) => ({
-			currentBaseSkuId: state.editor.currentBaseSkuId,
-			selectedColors: state.editor.selectedColors,
-			currentProductColorId: state.editor.currentProductColorId,
-			currentDesign: state.editor.currentDesigns[editorView],
-			previews: state.editor.previews, // Add this
-		})),
-	);
+	const { currentBaseSkuId, currentProductColorId, currentDesign, previews } =
+		useProductDesignStore(
+			useShallow((state) => ({
+				currentBaseSkuId: state.editor.currentBaseSkuId,
+				currentProductColorId: state.editor.currentProductColorId,
+				currentDesign: state.editor.currentDesigns[editorView],
+				previews: state.editor.previews, // Add this
+			})),
+		);
 
 	const setCurrentProductColor = useProductDesignStore(
 		(state) => state.setCurrentProductColor,
@@ -42,6 +36,8 @@ export const EditorColorSwitcher = ({}) => {
 	const base = useProductDesignStore((state) =>
 		currentBaseSkuId ? state.bases.catalog[currentBaseSkuId] : null,
 	);
+
+	const selectedColors = base?.selectedColorIds;
 
 	// ===== PREVIEW GENERATOR =====
 	const { handleGeneratePreview, isGenerating } = usePreviewGenerator();
@@ -81,7 +77,7 @@ export const EditorColorSwitcher = ({}) => {
 
 	return (
 		<div className="flex flex-col items-center justify-center gap-4 px-4 py-8">
-			{selectedColors.map((colorId) => (
+			{selectedColors?.map((colorId) => (
 				<ColorSwatch
 					key={colorId}
 					color={colorMap[colorId]}
