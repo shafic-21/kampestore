@@ -1,77 +1,67 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { OTPInput, OTPInputContext } from "input-otp"
-import { MinusIcon } from "lucide-react"
+import { forwardRef } from "react";
+import { OTPInput, SlotProps } from "input-otp";
+import { cn } from "@/lib/utils";
 
-import { cn } from "@/lib/utils"
-
-function InputOTP({
-  className,
-  containerClassName,
-  ...props
-}: React.ComponentProps<typeof OTPInput> & {
-  containerClassName?: string
-}) {
-  return (
-    <OTPInput
-      data-slot="input-otp"
-      containerClassName={cn(
-        "flex items-center gap-2 has-disabled:opacity-50",
-        containerClassName
-      )}
-      className={cn("disabled:cursor-not-allowed", className)}
-      {...props}
-    />
-  )
+export interface InputOTPProps {
+	value: string;
+	onChange: (value: string) => void;
+	maxLength?: number;
+	disabled?: boolean;
+	className?: string;
+	containerClassName?: string;
 }
 
-function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="input-otp-group"
-      className={cn("flex items-center", className)}
-      {...props}
-    />
-  )
+function OTPSlot(props: SlotProps) {
+	return (
+		<div
+			className={cn(
+				"border-input bg-background text-foreground flex h-12 w-12 items-center justify-center rounded-md border font-medium shadow-xs transition-[color,box-shadow] text-lg",
+				{ "border-ring ring-ring/50 z-10 ring-[3px]": props.isActive },
+			)}
+		>
+			{props.char !== null && <div>{props.char}</div>}
+		</div>
+	);
 }
 
-function InputOTPSlot({
-  index,
-  className,
-  ...props
-}: React.ComponentProps<"div"> & {
-  index: number
-}) {
-  const inputOTPContext = React.useContext(OTPInputContext)
-  const { char, hasFakeCaret, isActive } = inputOTPContext?.slots[index] ?? {}
+export const InputOTP = forwardRef<HTMLInputElement, InputOTPProps>(
+	(
+		{
+			value,
+			onChange,
+			maxLength = 6,
+			disabled = false,
+			className,
+			containerClassName,
+			...props
+		},
+		ref,
+	) => {
+		return (
+			<OTPInput
+				ref={ref}
+				value={value}
+				onChange={onChange}
+				maxLength={maxLength}
+				disabled={disabled}
+				containerClassName={cn(
+					"flex items-center gap-3 has-disabled:opacity-50",
+					containerClassName,
+				)}
+				className={className}
+				render={({ slots }) => (
+					<div className="flex gap-2">
+						{slots.map((slot, idx) => (
+							<OTPSlot key={idx} {...slot} />
+						))}
+					</div>
+				)}
+				{...props}
+			/>
+		);
+	},
+);
 
-  return (
-    <div
-      data-slot="input-otp-slot"
-      data-active={isActive}
-      className={cn(
-        "data-[active=true]:border-ring data-[active=true]:ring-ring/50 data-[active=true]:aria-invalid:ring-destructive/20 dark:data-[active=true]:aria-invalid:ring-destructive/40 aria-invalid:border-destructive data-[active=true]:aria-invalid:border-destructive dark:bg-input/30 border-input relative flex h-9 w-9 items-center justify-center border-y border-r text-sm shadow-xs transition-all outline-none first:rounded-l-md first:border-l last:rounded-r-md data-[active=true]:z-10 data-[active=true]:ring-[3px]",
-        className
-      )}
-      {...props}
-    >
-      {char}
-      {hasFakeCaret && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="animate-caret-blink bg-foreground h-4 w-px duration-1000" />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function InputOTPSeparator({ ...props }: React.ComponentProps<"div">) {
-  return (
-    <div data-slot="input-otp-separator" role="separator" {...props}>
-      <MinusIcon />
-    </div>
-  )
-}
-
-export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
+InputOTP.displayName = "InputOTP";
