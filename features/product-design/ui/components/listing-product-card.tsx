@@ -11,39 +11,38 @@ import { cn } from "@/lib/utils";
 import { useProductDesignStore } from "../../store";
 
 interface ListingProductCardProps {
-	product: string;
-	listingId: string | null;
+	productId: string;
 	initialSkuId: string;
 }
 
 export function ListingProductCard({
-	product,
+	productId,
 	initialSkuId,
 }: ListingProductCardProps) {
 	const router = useRouter();
 
 	// Store selectors
 	const removeProduct = useProductDesignStore((state) => state.removeProduct);
-	const base = useProductDesignStore(
-		(state) => state.bases.catalog[product.baseSkuId],
+	const product = useProductDesignStore(
+		(state) => state.bases.catalog[productId],
 	);
 
 	// Calculate profit information
-	const profit = Math.max(0, product.price - base.cost);
+	const profit = Math.max(0, product.creatorPrice - product.cost);
 
 	/**
 	 * Navigate to individual product editor with listing context
 	 * URL: /product-design/editor/[edit-sku]/[initial-sku]
 	 */
 	const handleEdit = () => {
-		router.push(`/product-design/editor/${product.baseSkuId}/${initialSkuId}`);
+		router.push(`/product-design/editor/${product.id}/${initialSkuId}`);
 	};
 
 	/**
 	 * Remove product from listing
 	 */
 	const handleDelete = () => {
-		removeProduct(product.baseSkuId);
+		removeProduct(product.id);
 	};
 	return (
 		<div className="flex gap-8 items-center border-b last:border-b-0 pb-4">
@@ -54,11 +53,11 @@ export function ListingProductCard({
 						<Image
 							src={
 								(product.featuredColorId &&
-									base.previews?.front?.[product.featuredColorId]) ||
-								Object.values(base.previews?.front || {})[0] ||
-								(base.views.front?.template.url as string)
+									product.previews?.front?.[product.featuredColorId]) ||
+								Object.values(product.previews?.front || {})[0] ||
+								(product.views.front?.template.url as string)
 							}
-							alt={`${base.name} with design`}
+							alt={`${product.name} with design`}
 							fill
 							className="object-cover"
 							sizes="80px"
@@ -69,13 +68,13 @@ export function ListingProductCard({
 				{/* Section 2: Product Information */}
 				<div className="flex-1 min-w-0 space-y-1">
 					<h3 className="font-medium text-base line-clamp-2 truncate">
-						{base.name}
+						{product.name}
 					</h3>
 
 					<div className="flex justify-between items-center text-sm mt-4">
 						<span className="text-muted-foreground">Price:</span>
 						<span className="font-medium">
-							{formatCurrency(product.price, "UGX")}
+							{formatCurrency(product.creatorPrice, "UGX")}
 						</span>
 					</div>
 					<div className="flex justify-between items-center text-sm">
