@@ -16,7 +16,7 @@
         "useUniqueElementIds": "off"
       },
       "a11y": {
-        "useKeyWithClickEvents": "info",
+        "useKeyWithClickEvents": "off",
         "useFocusableInteractive": "off",
         "useSemanticElements": "off"
       }

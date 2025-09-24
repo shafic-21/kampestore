@@ -3,8 +3,8 @@
 import { useQueryState } from "nuqs";
 import { trpc } from "@/trpc/client";
 import { ProductsGrid } from "../components/products-grid";
-import { SelfContainedStoreHeader } from "../components/self-contained-store-header";
 import { StoreFooter } from "../components/store-footer";
+import { StoreHeader } from "../components/store-header";
 import { StoreHero } from "../components/store-hero";
 
 interface StorePageViewProps {
@@ -102,7 +102,7 @@ export function StorePageView({ storeSlug }: StorePageViewProps) {
 	return (
 		<div className="min-h-screen flex flex-col">
 			{/* Store Header */}
-			<SelfContainedStoreHeader storeSlug={storeSlug} />
+			<StoreHeader storeSlug={storeSlug} />
 
 			{/* Main Content */}
 			<main className="flex-1">

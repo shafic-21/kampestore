@@ -1,28 +1,28 @@
 "use client";
 
-import * as React from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import type * as React from "react";
 import {
 	Dialog,
-	DialogTrigger,
 	DialogClose,
 	DialogContent,
-	DialogHeader,
-	DialogFooter,
-	DialogTitle,
 	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
 } from "@/components/ui/dialog";
 import {
 	Drawer,
-	DrawerTrigger,
 	DrawerClose,
 	DrawerContent,
-	DrawerHeader,
-	DrawerFooter,
-	DrawerTitle,
 	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+	DrawerTrigger,
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ResponsiveDialogProps {
 	children: React.ReactNode;
@@ -79,7 +79,10 @@ function ResponsiveDialog({ children, ...props }: ResponsiveDialogProps) {
 	return <Dialog {...props}>{children}</Dialog>;
 }
 
-function ResponsiveDialogTrigger({ children, ...props }: ResponsiveTriggerProps) {
+function ResponsiveDialogTrigger({
+	children,
+	...props
+}: ResponsiveTriggerProps) {
 	const isMobile = useIsMobile();
 
 	if (isMobile) {
@@ -100,23 +103,27 @@ function ResponsiveDialogContent({
 	if (isMobile) {
 		return (
 			<DrawerContent className={className} {...props}>
-				<ScrollArea className="flex-1">
-					{children}
-				</ScrollArea>
+				<ScrollArea className="flex-1 h-full ">{children}</ScrollArea>
 			</DrawerContent>
 		);
 	}
 
 	return (
-		<DialogContent className={className} showCloseButton={showCloseButton} {...props}>
-			<ScrollArea className="flex-1">
-				{children}
-			</ScrollArea>
+		<DialogContent
+			className={className}
+			showCloseButton={showCloseButton}
+			{...props}
+		>
+			<ScrollArea className="flex-1">{children}</ScrollArea>
 		</DialogContent>
 	);
 }
 
-function ResponsiveDialogHeader({ children, className, ...props }: ResponsiveHeaderProps) {
+function ResponsiveDialogHeader({
+	children,
+	className,
+	...props
+}: ResponsiveHeaderProps) {
 	const isMobile = useIsMobile();
 
 	if (isMobile) {
@@ -134,7 +141,11 @@ function ResponsiveDialogHeader({ children, className, ...props }: ResponsiveHea
 	);
 }
 
-function ResponsiveDialogFooter({ children, className, ...props }: ResponsiveFooterProps) {
+function ResponsiveDialogFooter({
+	children,
+	className,
+	...props
+}: ResponsiveFooterProps) {
 	const isMobile = useIsMobile();
 
 	if (isMobile) {
@@ -152,7 +163,11 @@ function ResponsiveDialogFooter({ children, className, ...props }: ResponsiveFoo
 	);
 }
 
-function ResponsiveDialogTitle({ children, className, ...props }: ResponsiveTitleProps) {
+function ResponsiveDialogTitle({
+	children,
+	className,
+	...props
+}: ResponsiveTitleProps) {
 	const isMobile = useIsMobile();
 
 	if (isMobile) {
@@ -170,7 +185,11 @@ function ResponsiveDialogTitle({ children, className, ...props }: ResponsiveTitl
 	);
 }
 
-function ResponsiveDialogDescription({ children, className, ...props }: ResponsiveDescriptionProps) {
+function ResponsiveDialogDescription({
+	children,
+	className,
+	...props
+}: ResponsiveDescriptionProps) {
 	const isMobile = useIsMobile();
 
 	if (isMobile) {
@@ -188,7 +207,11 @@ function ResponsiveDialogDescription({ children, className, ...props }: Responsi
 	);
 }
 
-function ResponsiveDialogClose({ children, className, ...props }: ResponsiveCloseProps) {
+function ResponsiveDialogClose({
+	children,
+	className,
+	...props
+}: ResponsiveCloseProps) {
 	const isMobile = useIsMobile();
 
 	if (isMobile) {
