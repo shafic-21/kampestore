@@ -155,12 +155,9 @@ export function StoreFrontView({
   return (
     <div className="min-h-screen flex flex-col">
       {/* Store Header */}
-      <StoreHeader
-        storeName={store.storeName}
-        categories={categories || []}
-        selectedCategory={categorySlug}
-        onCategoryChange={(category) => handleCategoryChange(category || '')}
-      />
+
+      	<StoreHeader storeSlug={storeSlug} />
+
 
       {/* Main Content */}
       <main className="flex-1">
