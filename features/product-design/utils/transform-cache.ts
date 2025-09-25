@@ -62,6 +62,7 @@ export function transformToCache(data: ServerEditorData): CachedProduct {
 		colors,
 		placements: {},
 		previews: {},
+		sizes: [],
 		featuredColorId: baseSku.colors[0].id,
 		selectedColorIds: [baseSku.colors[0].id],
 		creatorPrice: Number(baseSku.cost) * 1.2,

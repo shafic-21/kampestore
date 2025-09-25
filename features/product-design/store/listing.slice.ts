@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { extractKeyFromPublicUrl } from "@/lib/r2";
 import { trpcClient } from "@/trpc/client";
+import { generateSingleMockup } from "../server/mockup-generator";
 import type {
 	ListingSliceCreator,
 	NormalizedPlacement,
@@ -213,13 +214,6 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 			`Starting preview generation for ${catalogProducts.length} products in catalog...`,
 		);
 
-		// Get design color profile for smart color selection
-		const currentBaseSkuId = state.editor.currentBaseSkuId;
-
-		const frontCurrentDesign = currentBaseSkuId
-			? state.editor.currentDesigns.front
-			: null;
-
 		// Process each product
 		for (const [index, product] of catalogProducts.entries()) {
 			try {
@@ -256,8 +250,8 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 				}
 
 				// Generate mockup using product-specific placement
-				const result =
-					await trpcClient.productDesign.mockup.generateMockup.mutate({
+				const result = await generateSingleMockup(
+					{
 						designR2Key: frontDesign.designR2Key, // Shared design
 						templateR2Key: extractKeyFromPublicUrl(view.template.url),
 						backgroundColor: color.hexValue,
@@ -269,16 +263,18 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 						placement: placement, // Product-specific placement
 						outputFormat: "png",
 						quality: 85,
-					});
+					},
+					true, //isClient
+				);
 
 				// Convert to blob URL
-				const base64Data = result.mockupData;
+				const base64Data = result.mockupBuffer as string;
 				const binaryString = atob(base64Data);
 				const bytes = new Uint8Array(binaryString.length);
 				for (let i = 0; i < binaryString.length; i++) {
 					bytes[i] = binaryString.charCodeAt(i);
 				}
-				const blob = new Blob([bytes], { type: result.contentType });
+				const blob = new Blob([bytes], { type: "image/png" });
 				const blobUrl = URL.createObjectURL(blob);
 
 				// Update cached product with preview
@@ -361,29 +357,28 @@ export const createListingSlice: ListingSliceCreator = (set, get) => ({
 			console.log(`Generating preview for edited product: ${product.name}`);
 
 			// Generate mockup using product's specific placement
-			const result =
-				await trpcClient.productDesign.mockup.generateMockup.mutate({
-					designR2Key: designs.front.designR2Key, // Shared design
-					templateR2Key: extractKeyFromPublicUrl(view.template.url),
-					backgroundColor: color.hexValue,
-					templateSize: {
-						width: view.template.sourceWidthPx,
-						height: view.template.sourceHeightPx,
-					},
-					printArea: view.printArea,
-					placement: placement, // Product-specific placement
-					outputFormat: "png",
-					quality: 85,
-				});
+			const result = await generateSingleMockup({
+				designR2Key: designs.front.designR2Key, // Shared design
+				templateR2Key: extractKeyFromPublicUrl(view.template.url),
+				backgroundColor: color.hexValue,
+				templateSize: {
+					width: view.template.sourceWidthPx,
+					height: view.template.sourceHeightPx,
+				},
+				printArea: view.printArea,
+				placement: placement,
+				outputFormat: "png",
+				quality: 85,
+			});
 
 			// Convert to blob URL
-			const base64Data = result.mockupData;
+			const base64Data = result.mockupBuffer.toString("base64");
 			const binaryString = atob(base64Data);
 			const bytes = new Uint8Array(binaryString.length);
 			for (let i = 0; i < binaryString.length; i++) {
 				bytes[i] = binaryString.charCodeAt(i);
 			}
-			const blob = new Blob([bytes], { type: result.contentType });
+			const blob = new Blob([bytes], { type: `image/png` });
 			const blobUrl = URL.createObjectURL(blob);
 
 			// Update cached product with new preview

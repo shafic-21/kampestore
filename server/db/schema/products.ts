@@ -102,31 +102,6 @@ export const products = pgTable(
 	],
 );
 
-export const productVariants = pgTable(
-	"product_variants",
-	{
-		id: uuid("id").defaultRandom().primaryKey(),
-		productId: uuid("product_id")
-			.notNull()
-			.references(() => products.id, { onDelete: "cascade" }),
-		sku: text("sku").notNull().unique(),
-		comboHash: text("combo_hash").notNull(),
-		price: bigint("price", { mode: "bigint" }),
-		primaryMockupR2Key: text("primary_mockup_r2_key"),
-		secondaryMockupR2Key: text("secondary_mockup_r2_key"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	},
-	(table) => [
-		index("product_variants_product_id_idx").on(table.productId),
-		index("product_variants_sku_idx").on(table.sku),
-		unique("product_variants_product_combo_unique").on(
-			table.productId,
-			table.comboHash,
-		),
-	],
-);
-
 export const variantAttributeValues = pgTable(
 	"variant_attribute_values",
 	{

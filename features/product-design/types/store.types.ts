@@ -54,7 +54,11 @@ export interface CachedProduct {
 			hexValue: string;
 		}
 	>;
-
+	sizes: {
+		id: string;
+		code: string;
+		displayName: string;
+	}[];
 	//mutable
 	featuredColorId: string | null;
 	selectedColorIds: string[] | null;

@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { deleteR2File, extractKeyFromPublicUrl } from "@/lib/r2";
-import { trpcClient } from "@/trpc/client";
+import {
+	extractColorProfileAndSize,
+	generateSingleMockup,
+} from "../server/mockup-generator";
 import type {
 	EditorSliceCreator,
 	NormalizedPlacement,
@@ -155,10 +158,7 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 			const designR2Key = uploadResult.data.key;
 
 			// Extract colors using server-side tRPC procedure
-			const { colorProfile } =
-				await trpcClient.productDesign.mockup.extractColorsAndSize.mutate({
-					designR2Key,
-				});
+			const { colorProfile } = await extractColorProfileAndSize(designR2Key);
 
 			const catalogProducts = Object.values(get().bases.catalog);
 
@@ -513,8 +513,8 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 			);
 
 			// Generate mockup using tRPC
-			const result =
-				await trpcClient.productDesign.mockup.generateMockup.mutate({
+			const result = await generateSingleMockup(
+				{
 					designR2Key: currentDesign.designR2Key,
 					templateR2Key: extractKeyFromPublicUrl(view.template.url),
 					backgroundColor: color.hexValue,
@@ -526,16 +526,18 @@ export const createEditorSlice: EditorSliceCreator = (set, get) => ({
 					placement: currentPlacement,
 					outputFormat: "png",
 					quality: 90,
-				});
+				},
+				true, // isclient
+			);
 
 			// Convert base64 to blob URL
-			const base64Data = result.mockupData;
+			const base64Data = result.mockupBuffer as string;
 			const binaryString = atob(base64Data);
 			const bytes = new Uint8Array(binaryString.length);
 			for (let i = 0; i < binaryString.length; i++) {
 				bytes[i] = binaryString.charCodeAt(i);
 			}
-			const blob = new Blob([bytes], { type: result.contentType });
+			const blob = new Blob([bytes], { type: "image/png" });
 			const blobUrl = URL.createObjectURL(blob);
 
 			// SEAMLESS SWAP: Replace old preview with new one

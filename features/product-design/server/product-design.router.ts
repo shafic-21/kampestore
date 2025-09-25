@@ -28,21 +28,16 @@ import {
 
 import { publicProcedure } from "@/trpc/init";
 import { CategoryNotFoundError } from "../types/errors.types";
-import type { CachedProduct, NormalizedPlacement } from "../types/store.types";
-import {
-	transformBulkToCache,
-	transformToCache,
-} from "../utils/transform-cache";
+import type { CachedProduct } from "../types/store.types";
+
 import { listingProcedure } from "./listing.procedure";
-import { mockupGeneratorRouter } from "./mockup.procedure";
-import { MockupGenerator } from "./mockup-generator";
+
 import { productSearchFiltersSchema } from "./schema";
 
 const like = (q: string) => `%${q.trim()}%`;
 
 export const productDesignRouter = {
 	...listingProcedure,
-	mockup: mockupGeneratorRouter,
 	initializeStore: publicProcedure
 		.input(z.object({ sku: z.uuid() }))
 		.query(async ({ input }) => {
@@ -256,7 +251,6 @@ export const productDesignRouter = {
 						viewOrder: baseSkuViews.order,
 						sourceWidthPx: baseSkuViews.sourceWidthPx,
 						sourceHeightPx: baseSkuViews.sourceHeightPx,
-
 						printAreaXPx: baseSkuPrintAreas.xPx,
 						printAreaYPx: baseSkuPrintAreas.yPx,
 						printAreaWidthPx: baseSkuPrintAreas.widthPx,
@@ -293,7 +287,43 @@ export const productDesignRouter = {
 					.where(eq(attributes.code, "color"))
 					.limit(1);
 
+				const [sizeAttr] = await db
+					.select({ id: attributes.id })
+					.from(attributes)
+					.where(eq(attributes.code, "size"))
+					.limit(1);
+
 				let colorsData: any[] = [];
+				let sizesData: any[] = [];
+				if (sizeAttr) {
+					sizesData = await db
+						.select({
+							id: attributeValues.id,
+							code: attributeValues.code,
+							displayName: attributeValues.displayName,
+						})
+						.from(baseSkuAttributeRules)
+						.innerJoin(
+							attributeValueSets,
+							eq(baseSkuAttributeRules.valueSetId, attributeValueSets.id),
+						)
+						.innerJoin(
+							attributeValueSetMembers,
+							eq(attributeValueSets.id, attributeValueSetMembers.valueSetId),
+						)
+						.innerJoin(
+							attributeValues,
+							eq(attributeValueSetMembers.valueId, attributeValues.id),
+						)
+						.where(
+							and(
+								inArray(baseSkuAttributeRules.baseSkuId, productIds),
+								eq(baseSkuAttributeRules.attributeId, sizeAttr.id),
+							),
+						)
+						.orderBy(attributeValues.sortOrder);
+				}
+
 				if (colorAttr) {
 					colorsData = await db
 						.select({
@@ -386,7 +416,7 @@ export const productDesignRouter = {
 
 					// Build colors object
 					const colorsObject: CachedProduct["colors"] = {};
-					colors.forEach((c, index) => {
+					colors.forEach((c) => {
 						colorsObject[c.colorId] = {
 							id: c.colorId,
 							code: c.colorCode || "",
@@ -402,6 +432,7 @@ export const productDesignRouter = {
 						cost: Number(product.cost),
 						placements: {},
 						previews: {},
+						sizes: sizesData,
 						views: viewsObject,
 						colors: colorsObject,
 						featuredColorId: colors[0].colorId,

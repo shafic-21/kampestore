@@ -1,8 +1,8 @@
 import type { NormalizedPlacement } from "./store.types";
 
 interface MockupGenerationOptions {
-	designBuffer: Buffer;
-	templateBuffer: Buffer;
+	designR2Key: string;
+	templateR2Key: string;
 	backgroundColor: string;
 	templateSize: { width: number; height: number };
 	printArea: {
@@ -18,7 +18,7 @@ interface MockupGenerationOptions {
 }
 
 interface MockupResult {
-	mockupBuffer: Buffer;
+	mockupBuffer: Buffer | string;
 	metadata: {
 		width: number;
 		height: number;
@@ -27,11 +27,11 @@ interface MockupResult {
 }
 
 interface BulkMockupOptions {
-	designBuffer: Buffer;
+	designR2Key: string;
 	placement: NormalizedPlacement;
 	variants: Array<{
 		id: string;
-		templateBuffer: Buffer;
+		templateR2Key: string;
 		backgroundColor: string;
 		templateSize: { width: number; height: number };
 		printArea: {

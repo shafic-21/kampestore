@@ -1,14 +1,17 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+// import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as auth from "./schema/auth";
-import * as waitlist from "./schema/waitlist";
-import * as creators from "./schema/creators";
-import * as catalog from "./schema/catalog";
 import * as bases from "./schema/bases";
+import * as catalog from "./schema/catalog";
+import * as creators from "./schema/creators";
 import * as products from "./schema/products";
+import * as waitlist from "./schema/waitlist";
 
-const sql = neon(process.env.DATABASE_URL || "");
-export const db = drizzle(sql, {
+export const db = drizzle({
+	connection: {
+		connectionString: process.env.DATABASE_URL,
+		ssl: true,
+	},
 	schema: {
 		...auth,
 		...waitlist,
@@ -18,3 +21,15 @@ export const db = drizzle(sql, {
 		...products,
 	},
 });
+
+// const sql = neon(process.env.DATABASE_URL || "");
+// export const db = drizzle(sql, {
+// 	schema: {
+// 		...auth,
+// 		...waitlist,
+// 		...creators,
+// 		...catalog,
+// 		...bases,
+// 		...products,
+// 	},
+// });

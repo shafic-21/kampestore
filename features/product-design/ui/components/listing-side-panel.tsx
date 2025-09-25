@@ -102,6 +102,8 @@ export function ListingSidePanel({
 				designs: designs || {},
 				products: listingProducts.map((p) => ({
 					baseSkuId: p.id,
+					baseViews: p.views,
+					sizes: p.sizes,
 					price: p.creatorPrice,
 					colors: p.selectedColorIds || [],
 					featuredColorId: p.featuredColorId,
