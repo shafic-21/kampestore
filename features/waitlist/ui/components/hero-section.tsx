@@ -2,7 +2,6 @@ import React from "react";
 import { TextEffect } from "@/components/ui/text-effect";
 import { AnimatedGroup } from "@/components/ui/animated-group";
 import type { Variants } from "motion/react";
-import Image from "next/image";
 import { Logo } from "@/components/brand/logo";
 import { WaitlistForm } from "@/features/waitlist/ui/components/waitlist-form";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
@@ -74,7 +73,7 @@ export default function HeroSection() {
 									as="h1"
 									className="text-balance text-4xl font-bold md:text-6xl text-foreground mt-4"
 								>
-									Design and earn sweet, sweet cash.
+									A real store for your social media business.
 								</TextEffect>
 								<TextEffect
 									per="line"
@@ -84,24 +83,10 @@ export default function HeroSection() {
 									as="p"
 									className="mx-auto mt-4 max-w-2xl text-pretty text-lg lg:text-2xl text-foreground mb-6"
 								>
-									Place your art on quality products, from tees and hoodies to
-									mugs, and start selling. It’s fun, easy, and quick to get
-									started.
+									Build your own store, accept mobile money, and stop losing
+									sales to slow DM conversations.
 								</TextEffect>
 								<WaitlistForm />
-
-								<div
-									aria-hidden
-									className="w-full bg-secondary rounded-2xl pt-4 px-4 mt-12 overflow-hidden"
-								>
-									<Image
-										src="/hero-image.png"
-										alt="logo"
-										width={1000}
-										height={1000}
-										className="w-full h-full object-cover  -z-20 scale-120 sm:scale-100"
-									/>
-								</div>
 							</div>
 						</div>
 					</AnimatedGroup>
@@ -110,11 +95,3 @@ export default function HeroSection() {
 		</>
 	);
 }
-
-const AppComponent = () => {
-	return (
-		<div className="relative space-y-3 rounded-[1rem] bg-[#F6F6F9] p-4">
-			{/* */}
-		</div>
-	);
-};
